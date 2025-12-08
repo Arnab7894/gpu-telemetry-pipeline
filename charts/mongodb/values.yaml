@@ -1,0 +1,37 @@
+# Default values for MongoDB
+# This is a YAML-formatted file.
+
+replicaCount: 1
+
+image:
+  repository: mongo
+  tag: "7.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 27017
+  targetPort: 27017
+
+persistence:
+  enabled: false
+  # For production, enable persistence with PVC
+  # storageClass: ""
+  # size: 8Gi
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# MongoDB configuration
+mongodb:
+  # Database name for telemetry data
+  database: "telemetry"
+  # No authentication for local development
+  # For production, configure username/password
+  auth:
+    enabled: false

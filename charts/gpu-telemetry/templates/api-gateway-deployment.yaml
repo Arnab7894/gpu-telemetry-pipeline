@@ -1,0 +1,56 @@
+{{- if .Values.apiGateway.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gpu-telemetry.fullname" . }}-api-gateway
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-gateway
+spec:
+  replicas: {{ .Values.apiGateway.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gpu-telemetry.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api-gateway
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-telemetry.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: "{{ .Values.apiGateway.image.repository }}:{{ .Values.apiGateway.image.tag }}"
+        imagePullPolicy: {{ .Values.apiGateway.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.apiGateway.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: PORT
+          value: {{ .Values.apiGateway.env.port | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.apiGateway.env.logLevel | quote }}
+        - name: CORS_ENABLED
+          value: {{ .Values.apiGateway.env.corsEnabled | quote }}
+        - name: CORS_ALLOWED_ORIGINS
+          value: {{ .Values.apiGateway.env.corsAllowedOrigins | quote }}
+        - name: READ_TIMEOUT
+          value: {{ .Values.apiGateway.env.readTimeout | quote }}
+        - name: WRITE_TIMEOUT
+          value: {{ .Values.apiGateway.env.writeTimeout | quote }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.apiGateway.resources | nindent 10 }}
+{{- end }}

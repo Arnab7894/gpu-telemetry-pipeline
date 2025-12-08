@@ -1,0 +1,46 @@
+# Build artifacts
+bin/
+*.out
+*.test
+*.prof
+coverage.html
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (except what's needed)
+*.md
+!README.md
+docs/*.md
+
+# Kubernetes/Helm (not needed in image)
+charts/
+deployments/k8s/
+*.yaml
+*.yml
+
+# Test data (except the CSV we need)
+test/
+testdata/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,24 @@
+# Default values for telemetry-collector
+# This is a YAML-formatted file.
+
+replicaCount: 2
+
+image:
+  repository: gpu-telemetry-collector
+  tag: latest
+  pullPolicy: Never  # For local kind cluster
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+env:
+  queueUrl: "http://queue-service:8081"
+  batchSize: "10"
+  maxConcurrentHandlers: "10"
+  logLevel: "info"
+  mongodbUri: "mongodb://mongodb:27017/telemetry"

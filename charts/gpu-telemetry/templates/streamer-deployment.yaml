@@ -1,0 +1,40 @@
+{{- if .Values.streamer.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gpu-telemetry.fullname" . }}-streamer
+  labels:
+    {{- include "gpu-telemetry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: streamer
+spec:
+  replicas: {{ .Values.streamer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gpu-telemetry.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: streamer
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-telemetry.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: streamer
+    spec:
+      containers:
+      - name: streamer
+        image: "{{ .Values.streamer.image.repository }}:{{ .Values.streamer.image.tag }}"
+        imagePullPolicy: {{ .Values.streamer.image.pullPolicy }}
+        env:
+        - name: CSV_FILE_PATH
+          value: {{ .Values.streamer.env.csvFilePath | quote }}
+        - name: INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: STREAM_INTERVAL
+          value: {{ .Values.streamer.env.streamInterval | quote }}
+        - name: QUEUE_URL
+          value: {{ .Values.streamer.env.queueUrl | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.streamer.env.logLevel | quote }}
+        resources:
+          {{- toYaml .Values.streamer.resources | nindent 10 }}
+{{- end }}

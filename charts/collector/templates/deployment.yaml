@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/component: collector
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+      app.kubernetes.io/component: collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: collector
+        app.kubernetes.io/component: collector
+    spec:
+      containers:
+      - name: collector
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: QUEUE_SERVICE_URL
+          value: {{ .Values.env.queueUrl | quote }}
+        - name: BATCH_SIZE
+          value: {{ .Values.env.batchSize | quote }}
+        - name: MAX_CONCURRENT_HANDLERS
+          value: {{ .Values.env.maxConcurrentHandlers | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.env.logLevel | quote }}
+        - name: MONGODB_URI
+          value: {{ .Values.env.mongodbUri | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

@@ -1,0 +1,199 @@
+basePath: /api/v1
+definitions:
+  github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse:
+    properties:
+      error:
+        example: GPU not found
+        type: string
+      message:
+        example: 'No GPU found with UUID: GPU-invalid-uuid'
+        type: string
+      timestamp:
+        example: "2025-01-18T12:34:56Z"
+        type: string
+    type: object
+  github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.GPUListResponse:
+    properties:
+      gpus:
+        items:
+          $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.GPUResponse'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.GPUResponse:
+    properties:
+      container:
+        example: gpu-workload
+        type: string
+      device_id:
+        example: nvidia0
+        type: string
+      gpu_index:
+        example: "0"
+        type: string
+      hostname:
+        example: mtv5-dgx1-hgpu-031
+        type: string
+      model_name:
+        example: NVIDIA H100 80GB HBM3
+        type: string
+      namespace:
+        example: ml-team
+        type: string
+      pod:
+        example: training-pod-1
+        type: string
+      uuid:
+        example: GPU-5fd4f087-86f3-7a43-b711-4771313afc50
+        type: string
+    type: object
+  github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.TelemetryListResponse:
+    properties:
+      end_time:
+        example: "2025-01-18T23:59:59Z"
+        type: string
+      gpu_uuid:
+        example: GPU-5fd4f087-86f3-7a43-b711-4771313afc50
+        type: string
+      metrics:
+        items:
+          $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.TelemetryResponse'
+        type: array
+      start_time:
+        example: "2025-01-18T00:00:00Z"
+        type: string
+      total:
+        example: 150
+        type: integer
+    type: object
+  github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.TelemetryResponse:
+    properties:
+      gpu_uuid:
+        example: GPU-5fd4f087-86f3-7a43-b711-4771313afc50
+        type: string
+      labels_raw:
+        example: DCGM_FI_DRIVER_VERSION="535.129.03"
+        type: string
+      metric_name:
+        example: DCGM_FI_DEV_GPU_UTIL
+        type: string
+      timestamp:
+        example: "2025-01-18T12:34:56.789Z"
+        type: string
+      value:
+        example: "85"
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@gpu-telemetry.local
+    name: API Support
+  description: REST API for querying GPU telemetry data collected from DCGM metrics
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: GPU Telemetry Pipeline API
+  version: "1.0"
+paths:
+  /api/v1/gpus:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all GPU devices for which telemetry data exists
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.GPUListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse'
+      summary: List all GPUs
+      tags:
+      - gpus
+  /api/v1/gpus/{uuid}:
+    get:
+      consumes:
+      - application/json
+      description: Get a specific GPU device by its UUID
+      parameters:
+      - description: GPU UUID
+        example: '"GPU-5fd4f087-86f3-7a43-b711-4771313afc50"'
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.GPUResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse'
+      summary: Get GPU by UUID
+      tags:
+      - gpus
+  /api/v1/gpus/{uuid}/telemetry:
+    get:
+      consumes:
+      - application/json
+      description: Get telemetry data for a specific GPU with optional time filtering.
+        Results are ordered by timestamp (newest first).
+      parameters:
+      - description: GPU UUID
+        example: '"GPU-5fd4f087-86f3-7a43-b711-4771313afc50"'
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Start time in RFC3339 format
+        example: '"2025-01-18T00:00:00Z"'
+        in: query
+        name: start_time
+        type: string
+      - description: End time in RFC3339 format
+        example: '"2025-01-18T23:59:59Z"'
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.TelemetryListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_arnabghosh_gpu-metrics-streamer_internal_api_dto.ErrorResponse'
+      summary: Get GPU telemetry data
+      tags:
+      - telemetry
+schemes:
+- http
+- https
+swagger: "2.0"

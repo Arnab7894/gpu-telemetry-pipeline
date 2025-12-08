@@ -1,0 +1,6 @@
+apiVersion: v2
+name: telemetry
+description: MongoDB for GPU Telemetry Data Storage
+type: application
+version: 0.1.0
+appVersion: "7.0"

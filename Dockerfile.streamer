@@ -1,0 +1,57 @@
+# Multi-stage build for Telemetry Streamer
+# Stage 1: Build
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the streamer binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o streamer \
+    ./cmd/streamer
+
+# Stage 2: Runtime
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata wget
+
+# Copy binary from builder
+COPY --from=builder /build/streamer /app/streamer
+
+# Copy sample CSV file (default location)
+COPY data/dcgm_metrics_20250718_134233.csv /app/data/metrics.csv
+
+# Create non-root user for security
+RUN addgroup -g 1000 streamer && \
+    adduser -D -u 1000 -G streamer streamer && \
+    chown -R streamer:streamer /app
+
+USER streamer
+
+# Environment variables with defaults
+ENV CSV_FILE_PATH=/app/data/metrics.csv \
+    INSTANCE_ID=streamer-1 \
+    STREAM_INTERVAL=1s \
+    QUEUE_URL=http://queue-service:8081 \
+    LOG_LEVEL=info
+
+EXPOSE 8080
+
+# Health check (assumes streamer has health endpoint or can respond)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/app/streamer"]

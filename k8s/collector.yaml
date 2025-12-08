@@ -1,0 +1,50 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+spec:
+  replicas: 3  # Can be scaled
+  selector:
+    matchLabels:
+      app: collector
+  template:
+    metadata:
+      labels:
+        app: collector
+    spec:
+      containers:
+      - name: collector
+        image: gpu-metrics-streamer/collector:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: QUEUE_SERVICE_URL
+          value: "http://queue-service:8080"
+        - name: INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: BATCH_SIZE
+          value: "1"
+        - name: MAX_CONCURRENT_HANDLERS
+          value: "10"
+        - name: MONGODB_URI
+          valueFrom:
+            secretRef:
+              name: mongodb-credentials
+              key: uri
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongodb-credentials
+type: Opaque
+stringData:
+  uri: "mongodb://mongodb:27017/telemetry"

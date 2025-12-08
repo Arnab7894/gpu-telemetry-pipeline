@@ -1,0 +1,109 @@
+# Default values for gpu-telemetry chart
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+global:
+  imagePullPolicy: IfNotPresent
+  namespace: default
+
+# Streamer configuration
+streamer:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: gpu-telemetry-streamer
+    tag: latest
+    pullPolicy: Never  # For local kind cluster
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    csvFilePath: "/app/data/metrics.csv"
+    streamInterval: "1s"
+    queueUrl: "http://queue-service:8081"
+    logLevel: "info"
+
+# Collector configuration
+collector:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: gpu-telemetry-collector
+    tag: latest
+    pullPolicy: Never  # For local kind cluster
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    queueUrl: "http://queue-service:8081"
+    batchSize: "10"
+    maxConcurrentHandlers: "10"
+    logLevel: "info"
+
+# API Gateway configuration
+apiGateway:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: gpu-telemetry-api
+    tag: latest
+    pullPolicy: Never  # For local kind cluster
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    port: "8080"
+    logLevel: "info"
+    corsEnabled: "true"
+    corsAllowedOrigins: "*"
+    readTimeout: "30s"
+    writeTimeout: "30s"
+
+# Queue Service configuration
+queueService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: gpu-telemetry-queue
+    tag: latest
+    pullPolicy: Never  # For local kind cluster
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  env:
+    port: "8081"
+    bufferSize: "10000"
+    maxWorkers: "100"
+    visibilityTimeout: "30s"
+    maxRetries: "3"
+    logLevel: "info"
+
+# Service Account (optional, for future RBAC)
+serviceAccount:
+  create: false
+  name: ""

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: api-gateway
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+      app.kubernetes.io/component: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/component: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: PORT
+          value: {{ .Values.env.port | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.env.logLevel | quote }}
+        - name: CORS_ENABLED
+          value: {{ .Values.env.corsEnabled | quote }}
+        - name: CORS_ALLOWED_ORIGINS
+          value: {{ .Values.env.corsAllowedOrigins | quote }}
+        - name: READ_TIMEOUT
+          value: {{ .Values.env.readTimeout | quote }}
+        - name: WRITE_TIMEOUT
+          value: {{ .Values.env.writeTimeout | quote }}
+        - name: MONGODB_URI
+          value: {{ .Values.env.mongodbUri | quote }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

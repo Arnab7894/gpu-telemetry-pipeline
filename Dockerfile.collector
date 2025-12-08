@@ -1,0 +1,54 @@
+# Multi-stage build for Telemetry Collector
+# Stage 1: Build
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the collector binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o collector \
+    ./cmd/collector
+
+# Stage 2: Runtime
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata wget
+
+# Copy binary from builder
+COPY --from=builder /build/collector /app/collector
+
+# Create non-root user for security
+RUN addgroup -g 1000 collector && \
+    adduser -D -u 1000 -G collector collector && \
+    chown -R collector:collector /app
+
+USER collector
+
+# Environment variables with defaults
+ENV INSTANCE_ID=collector-1 \
+    QUEUE_URL=http://queue-service:8081 \
+    BATCH_SIZE=10 \
+    MAX_CONCURRENT_HANDLERS=10 \
+    LOG_LEVEL=info
+
+EXPOSE 8080
+
+# Health check (assumes collector has health endpoint or can respond)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/app/collector"]

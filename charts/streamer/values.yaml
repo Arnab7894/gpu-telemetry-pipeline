@@ -1,0 +1,23 @@
+# Default values for telemetry-streamer
+# This is a YAML-formatted file.
+
+replicaCount: 2
+
+image:
+  repository: gpu-telemetry-streamer
+  tag: latest
+  pullPolicy: Never  # For local kind cluster
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+env:
+  csvFilePath: "/app/data/metrics.csv"
+  streamInterval: "1s"
+  queueUrl: "http://queue-service:8081"
+  logLevel: "info"

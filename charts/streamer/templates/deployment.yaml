@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamer
+  labels:
+    app.kubernetes.io/name: streamer
+    app.kubernetes.io/component: streamer
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: streamer
+      app.kubernetes.io/component: streamer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: streamer
+        app.kubernetes.io/component: streamer
+    spec:
+      containers:
+      - name: streamer
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: CSV_FILE_PATH
+          value: {{ .Values.env.csvFilePath | quote }}
+        - name: INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: STREAM_INTERVAL
+          value: {{ .Values.env.streamInterval | quote }}
+        - name: QUEUE_SERVICE_URL
+          value: {{ .Values.env.queueUrl | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.env.logLevel | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

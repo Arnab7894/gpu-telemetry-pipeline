@@ -1,0 +1,16 @@
+apiVersion: v2
+name: telemetry
+description: Telemetry Streamer for GPU Metrics - Reads CSV and sends to queue
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - gpu
+  - telemetry
+  - metrics
+  - streaming
+maintainers:
+  - name: GPU Telemetry Team
+home: https://github.com/your-org/gpu-telemetry
+sources:
+  - https://github.com/your-org/gpu-telemetry
