@@ -1,0 +1,29 @@
+# CODEOWNERS file for gpu-telemetry-pipeline
+# This file defines individuals or teams that are responsible for code in this repository.
+# Code owners are automatically requested for review when someone opens a pull request
+# that modifies code that they own.
+#
+# More info: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owner - owns everything in the repository
+* @Arnab7894
+
+# Service-specific ownership (all owned by same person for this project)
+/cmd/                    @Arnab7894
+/internal/               @Arnab7894
+/charts/                 @Arnab7894
+/docs/                   @Arnab7894
+
+# Configuration files
+*.yaml                   @Arnab7894
+*.yml                    @Arnab7894
+Dockerfile*              @Arnab7894
+Makefile                 @Arnab7894
+go.mod                   @Arnab7894
+go.sum                   @Arnab7894
+
+# Documentation
+*.md                     @Arnab7894
+
+# CI/CD and GitHub configuration
+/.github/                @Arnab7894
