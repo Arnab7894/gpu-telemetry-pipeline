@@ -399,7 +399,7 @@ Output:
 
 ---
 
-## Prompt 15 – Final Review, AI Usage Section, and Interview Summary
+## Prompt 15 – Final Review, AI Usage Section
 
 Finally:
 
@@ -409,13 +409,95 @@ Finally:
      - Clear separation of concerns
      - Proper use of patterns (Repository, Factory, Strategy, etc.).
    - Suggest small refactors or cleanup where needed (naming, error handling, logging, package layout).
+   - Look for any redundant code that you might have added. 
 
 Output:
 
 - Review notes / suggested improvements.
 
+## Prompt 16 - Redis integration
+
+You will help me update an existing Go-based GPU Telemetry Pipeline project that currently uses a custom in-memory message queue.
+
+Goal: Replace the in-memory cache used by the custom message queue with Redis, while preserving all current queue semantics and end-to-end functionality.
+
+Context:
+- The project already has:
+  - A Telemetry Streamer (produces messages from a CSV).
+  - A Telemetry Collector (consumes messages and persists data).
+  - A custom message queue abstraction with an in-memory implementation.
+  - Helm charts for deploying components to Kubernetes using kind.
+- I am attaching:
+  - `GPU Telemetry Pipeline Message Queue.pdf` – the original problem statement.
+  - `dcgm_metrics_20250718_134233 (1)(1).csv` – sample metrics file (for context only).
+
+Your tasks:
+
+1. Helm chart for Redis
+   - Create a separate Helm chart (or subchart) for deploying a simple Redis server suitable for development/local testing on a kind cluster.
+   - Provide:
+     - `Chart.yaml`
+     - `values.yaml`
+     - Deployment/Service templates
+   - Explain how the application’s components (Streamer/Collector/API) will know how to connect to Redis (e.g., via environment variables and Helm values).
+
+2. Update custom message queue to use Redis
+   - Take the existing custom message queue abstraction and:
+     - Keep the public interface the same (or clearly explain any necessary changes).
+     - Implement a new Redis-backed queue that stores messages in Redis instead of an in-memory map/cache.
+   - Preserve and support all current queue behaviors, following might not cover everything. So please read the current implementation and problem statement attached:
+     - Multiple producers (Streamers) and multiple consumers (Collectors).
+     - Once a message is read by one Collector instance:
+       - It must be invisible to other Collector instances until an `ack` or `nack` is received (i.e., visibility timeout / in-flight messages).
+     - When an `ack` is received:
+       - The message must be permanently deleted from the queue.
+     - A `nack` should make the message available again to be reprocessed.
+   - The behavior should simulate a typical queueing service like RabbitMQ as closely as possible (within reasonable scope).
+
+3. Integrate Redis queue into the existing services
+   - Wire the Redis-based implementation into:
+     - Telemetry Streamer (as producer).
+     - Telemetry Collector (as consumer).
+   - Use dependency injection / interfaces so that:
+     - The in-memory implementation could still be swapped back in if needed.
+     - The rest of the code (Streamer/Collector) does not depend on Redis-specific details.
+
+4. Unit tests
+   - Add unit tests for all newly added functionality:
+     - Redis-backed queue implementation.
+     - Correct handling of visibility (message not visible to other consumers until ack/nack).
+     - Correct delete-on-ack behavior.
+     - Correct re-queue / visibility restoration behavior on nack or timeout (if applicable).
+   - Ensure tests cover all new functions and important edge cases.
+   - If needed, use a Redis test instance or a mock/fake that closely matches behavior, and document the choice.
+
+5. End-to-end validation
+   - Provide instructions and/or scripts to test the feature end to end:
+     - Start Redis (via Helm on a kind cluster).
+     - Deploy/update the application so that it uses the Redis-backed queue.
+     - Run at least one Streamer and one or more Collector instances.
+     - Show example logs or steps that demonstrate:
+       - Messages are produced, queued in Redis, consumed, and acknowledged.
+       - No duplicate processing under normal conditions.
+   - If possible, include sample `kubectl` and `helm` commands for:
+     - Deploying Redis.
+     - Upgrading/redeploying the services.
+     - Verifying Pods and logs.
+
+Exit criteria:
+- The custom message queue uses Redis for persistence instead of the in-memory cache.
+- All previous queue features and behaviors still work as expected.
+- Unit tests cover the new Redis-based logic.
+- The system can be tested end to end on a local kind cluster using the provided Helm charts.
+- Do not add any unnecessary doc. 
+
+Please:
+- Show all relevant code changes (Go code, Helm templates, config).
+- Clearly mark new files vs modified files.
+- Provide short explanations where design choices are non-trivial.
+
 ---
 
 ✅ **End of Prompt Log**
 
-This file can be used to reproducibly guide an LLM through building the entire GPU Telemetry Pipeline project step by step, while meeting all assignment requirements.
+This file can be used to reproducibly guide an LLM through building the entire GPU Telemetry Pipeline project step by step, while meeting most of assignment requirements.

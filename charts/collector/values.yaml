@@ -17,8 +17,8 @@ resources:
     memory: 128Mi
 
 env:
-  queueUrl: "http://queue-service:8081"
+  queueServiceUrl: "http://queue-service:8081"
   batchSize: "10"
   maxConcurrentHandlers: "10"
   logLevel: "info"
-  mongodbUri: "mongodb://mongodb:27017/telemetry"
+  mongodbUri: "mongodb://mongodb:27017"

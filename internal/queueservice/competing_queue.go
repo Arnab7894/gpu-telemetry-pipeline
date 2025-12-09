@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,10 +51,16 @@ type ConsumerGroup struct {
 
 // Consumer represents a single consumer in a group
 type Consumer struct {
-	ID           string
-	MessageChan  chan *Message
-	LastActivity time.Time
-	mu           sync.RWMutex
+	ID                 string
+	MessageChan        chan *Message
+	LastActivity       time.Time
+	activeMessageCount int64 // atomic counter for messages being processed
+	mu                 sync.RWMutex
+}
+
+// GetActiveMessageCount returns the current count of active messages
+func (c *Consumer) GetActiveMessageCount() int64 {
+	return atomic.LoadInt64(&c.activeMessageCount)
 }
 
 // PendingList tracks messages being processed
@@ -271,9 +278,23 @@ func (q *CompetingConsumerQueue) Ack(topicName, groupName, messageID string) err
 		return ErrConsumerGroupNotFound
 	}
 
+	// Get the entry first to find which consumer processed it
+	entry := group.pending.Get(messageID)
+	if entry == nil {
+		return ErrMessageNotFound
+	}
+
 	removed := group.pending.Remove(messageID)
 	if !removed {
 		return ErrMessageNotFound
+	}
+
+	// Decrement the consumer's active message count
+	group.mu.RLock()
+	consumer, exists := group.consumers[entry.ConsumerID]
+	group.mu.RUnlock()
+	if exists {
+		atomic.AddInt64(&consumer.activeMessageCount, -1)
 	}
 
 	q.logger.Debug("Message acknowledged",
@@ -310,6 +331,14 @@ func (q *CompetingConsumerQueue) Nack(topicName, groupName, messageID string) er
 
 	// Remove from pending
 	group.pending.Remove(messageID)
+
+	// Decrement the consumer's active message count
+	group.mu.RLock()
+	consumer, exists := group.consumers[entry.ConsumerID]
+	group.mu.RUnlock()
+	if exists {
+		atomic.AddInt64(&consumer.activeMessageCount, -1)
+	}
 
 	// Increment delivery count
 	entry.Message.DeliveryCount++
@@ -378,6 +407,9 @@ func (q *CompetingConsumerQueue) deliverToConsumerGroup(ctx context.Context, top
 			}
 			group.pending.Add(msg.ID, entry)
 
+			// Increment consumer's active message count
+			atomic.AddInt64(&consumer.activeMessageCount, 1)
+
 			// Deliver to consumer (non-blocking)
 			select {
 			case consumer.MessageChan <- msg:
@@ -386,10 +418,13 @@ func (q *CompetingConsumerQueue) deliverToConsumerGroup(ctx context.Context, top
 					"group", group.name,
 					"consumer_id", consumer.ID,
 					"message_id", msg.ID,
+					"active_count", atomic.LoadInt64(&consumer.activeMessageCount),
 				)
 			default:
 				// Consumer buffer full, remove from pending and requeue
 				group.pending.Remove(msg.ID)
+				// Decrement count since delivery failed
+				atomic.AddInt64(&consumer.activeMessageCount, -1)
 				select {
 				case topic.messages <- msg:
 				default:
@@ -408,7 +443,7 @@ func (q *CompetingConsumerQueue) deliverToConsumerGroup(ctx context.Context, top
 	}
 }
 
-// selectConsumer selects the best consumer to deliver to (round-robin)
+// selectConsumer selects the best consumer to deliver to using least-loaded strategy
 func (q *CompetingConsumerQueue) selectConsumer(group *ConsumerGroup) *Consumer {
 	group.mu.RLock()
 	defer group.mu.RUnlock()
@@ -417,13 +452,19 @@ func (q *CompetingConsumerQueue) selectConsumer(group *ConsumerGroup) *Consumer 
 		return nil
 	}
 
-	// Simple round-robin: pick first available consumer
-	// TODO: Implement more sophisticated selection (least-loaded, health-based)
+	// Least-loaded selection: pick consumer with fewest active messages
+	var selected *Consumer
+	minLoad := int64(-1)
+
 	for _, consumer := range group.consumers {
-		return consumer
+		load := atomic.LoadInt64(&consumer.activeMessageCount)
+		if minLoad == -1 || load < minLoad {
+			minLoad = load
+			selected = consumer
+		}
 	}
 
-	return nil
+	return selected
 }
 
 // visibilityTimeoutChecker checks for expired messages and requeues them

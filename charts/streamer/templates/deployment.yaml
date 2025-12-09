@@ -31,7 +31,7 @@ spec:
         - name: STREAM_INTERVAL
           value: {{ .Values.env.streamInterval | quote }}
         - name: QUEUE_SERVICE_URL
-          value: {{ .Values.env.queueUrl | quote }}
+          value: {{ .Values.env.queueServiceUrl | quote }}
         - name: LOG_LEVEL
           value: {{ .Values.env.logLevel | quote }}
         resources:

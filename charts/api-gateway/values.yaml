@@ -28,4 +28,4 @@ env:
   corsAllowedOrigins: "*"
   readTimeout: "30s"
   writeTimeout: "30s"
-  mongodbUri: "mongodb://mongodb:27017/telemetry"
+  mongodbUri: "mongodb://mongodb:27017"

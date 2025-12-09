@@ -6,6 +6,8 @@
 global:
   imagePullPolicy: IfNotPresent
   namespace: default
+  mongodb:
+    uri: "mongodb://mongodb:27017"
 
 # Streamer configuration
 streamer:
@@ -25,7 +27,7 @@ streamer:
   env:
     csvFilePath: "/app/data/metrics.csv"
     streamInterval: "1s"
-    queueUrl: "http://queue-service:8081"
+    queueServiceUrl: "http://gpu-telemetry-queue-service:8081"
     logLevel: "info"
 
 # Collector configuration
@@ -44,7 +46,8 @@ collector:
       cpu: 100m
       memory: 128Mi
   env:
-    queueUrl: "http://queue-service:8081"
+    queueServiceUrl: "http://gpu-telemetry-queue-service:8081"
+    mongodbUri: "mongodb://mongodb:27017"
     batchSize: "10"
     maxConcurrentHandlers: "10"
     logLevel: "info"
@@ -70,6 +73,7 @@ apiGateway:
       memory: 128Mi
   env:
     port: "8080"
+    mongodbUri: "mongodb://mongodb:27017"
     logLevel: "info"
     corsEnabled: "true"
     corsAllowedOrigins: "*"

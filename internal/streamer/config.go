@@ -2,9 +2,9 @@ package streamer
 
 import (
 	"flag"
-	"os"
-	"strconv"
 	"time"
+
+	"github.com/arnabghosh/gpu-metrics-streamer/internal/config"
 )
 
 // Config holds the configuration for the telemetry streamer
@@ -19,50 +19,16 @@ type Config struct {
 
 // LoadConfig loads configuration from environment variables and command-line flags
 func LoadConfig() *Config {
-	config := &Config{}
+	cfg := &Config{}
 
-	flag.StringVar(&config.CSVPath, "csv-path", getEnv("CSV_PATH", "/app/data/metrics.csv"), "Path to CSV file")
-	flag.DurationVar(&config.StreamInterval, "interval", getEnvDuration("STREAM_INTERVAL", 100*time.Millisecond), "Interval between sending rows")
-	flag.StringVar(&config.InstanceID, "instance-id", getEnv("INSTANCE_ID", "streamer-1"), "Unique instance ID for this streamer")
-	flag.IntVar(&config.QueueBufferSize, "queue-buffer", getEnvInt("QUEUE_BUFFER_SIZE", 1000), "Message queue buffer size")
-	flag.IntVar(&config.QueueWorkers, "queue-workers", getEnvInt("QUEUE_WORKERS", 10), "Number of queue workers")
-	flag.BoolVar(&config.LoopMode, "loop", getEnvBool("LOOP_MODE", true), "Loop from beginning when EOF reached")
+	flag.StringVar(&cfg.CSVPath, "csv-path", config.GetEnv("CSV_PATH", config.DefaultStreamerCSVPath), "Path to CSV file")
+	flag.DurationVar(&cfg.StreamInterval, "interval", config.GetEnvDuration("STREAM_INTERVAL", config.DefaultStreamInterval), "Interval between sending rows")
+	flag.StringVar(&cfg.InstanceID, "instance-id", config.GetEnv("INSTANCE_ID", config.DefaultStreamerInstanceID), "Unique instance ID for this streamer")
+	flag.IntVar(&cfg.QueueBufferSize, "queue-buffer", config.GetEnvInt("QUEUE_BUFFER_SIZE", config.DefaultQueueBufferSize), "Message queue buffer size")
+	flag.IntVar(&cfg.QueueWorkers, "queue-workers", config.GetEnvInt("QUEUE_WORKERS", config.DefaultQueueWorkers), "Number of queue workers")
+	flag.BoolVar(&cfg.LoopMode, "loop", config.GetEnvBool("LOOP_MODE", config.DefaultStreamerLoopMode), "Loop from beginning when EOF reached")
 
 	flag.Parse()
 
-	return config
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
-}
-
-func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolVal, err := strconv.ParseBool(value); err == nil {
-			return boolVal
-		}
-	}
-	return defaultValue
+	return cfg
 }

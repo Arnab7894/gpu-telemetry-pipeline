@@ -137,7 +137,7 @@ func (c *Collector) handleMessage(ctx context.Context, msg *mq.Message) error {
 			"error", err,
 		)
 		// Return error to potentially requeue
-		return fmt.Errorf("failed to store telemetry: %w", err)
+		return fmt.Errorf("failed to store telemetry for GPU %s metric %s: %w", telemetry.GPUUUID, telemetry.MetricName, err)
 	}
 
 	c.telemetryStored.Add(1)

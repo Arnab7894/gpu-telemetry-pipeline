@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/arnabghosh/gpu-metrics-streamer/internal/config"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/queueservice"
 )
 
@@ -22,10 +22,10 @@ func main() {
 		bufferSize        int
 	)
 
-	flag.IntVar(&port, "port", getEnvInt("PORT", 8080), "HTTP server port")
-	flag.DurationVar(&visibilityTimeout, "visibility-timeout", getEnvDuration("VISIBILITY_TIMEOUT", 5*time.Minute), "Message visibility timeout")
-	flag.IntVar(&maxRetries, "max-retries", getEnvInt("MAX_RETRIES", 3), "Maximum delivery retries before dead letter")
-	flag.IntVar(&bufferSize, "buffer-size", getEnvInt("BUFFER_SIZE", 1000), "Topic buffer size")
+	flag.IntVar(&port, "port", config.GetEnvInt("PORT", config.DefaultQueueServicePort), "HTTP server port")
+	flag.DurationVar(&visibilityTimeout, "visibility-timeout", config.GetEnvDuration("VISIBILITY_TIMEOUT", 5*time.Minute), "Message visibility timeout")
+	flag.IntVar(&maxRetries, "max-retries", config.GetEnvInt("MAX_RETRIES", 3), "Maximum delivery retries before dead letter")
+	flag.IntVar(&bufferSize, "buffer-size", config.GetEnvInt("BUFFER_SIZE", config.DefaultQueueBufferSize), "Topic buffer size")
 	flag.Parse()
 
 	// Setup structured logging
@@ -106,23 +106,4 @@ func main() {
 	logger.Info("Queue Service shutdown complete",
 		"final_stats", stats,
 	)
-}
-
-// Helper functions
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
-}
-
-func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultValue
 }

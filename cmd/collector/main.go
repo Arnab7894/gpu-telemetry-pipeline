@@ -9,9 +9,11 @@ import (
 	"syscall"
 
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/collector"
+	appconfig "github.com/arnabghosh/gpu-metrics-streamer/internal/config"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/mq"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/inmemory"
+	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/mongodb"
 )
 
 func main() {
@@ -81,7 +83,7 @@ func main() {
 		// Use MongoDB
 		logger.Info("Using MongoDB storage", "mongodb_uri", mongoURI)
 
-		mongoTelemetryRepo, err := storage.NewMongoTelemetryRepository(mongoURI, "telemetry", "metrics")
+		mongoTelemetryRepo, err := mongodb.NewTelemetryRepository(mongoURI, appconfig.DefaultMongoDatabase, appconfig.DefaultMongoMetricsCollection)
 		if err != nil {
 			logger.Error("Failed to connect to MongoDB for telemetry", "error", err)
 			os.Exit(1)
@@ -89,7 +91,7 @@ func main() {
 		defer mongoTelemetryRepo.Close(context.Background())
 		telemetryRepo = mongoTelemetryRepo
 
-		mongoGPURepo, err := storage.NewMongoGPURepository(mongoURI, "telemetry", "gpus")
+		mongoGPURepo, err := mongodb.NewGPURepository(mongoURI, appconfig.DefaultMongoDatabase, appconfig.DefaultMongoGPUCollection)
 		if err != nil {
 			logger.Error("Failed to connect to MongoDB for GPU", "error", err)
 			os.Exit(1)

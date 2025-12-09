@@ -95,7 +95,7 @@ func (s *Streamer) Start(ctx context.Context) error {
 func (s *Streamer) streamFile(ctx context.Context) error {
 	file, err := os.Open(s.config.CSVPath)
 	if err != nil {
-		return fmt.Errorf("failed to open CSV file: %w", err)
+		return fmt.Errorf("failed to open CSV file %s: %w", s.config.CSVPath, err)
 	}
 	defer file.Close()
 

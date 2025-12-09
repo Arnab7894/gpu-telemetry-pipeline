@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -55,6 +56,10 @@ func (h *TelemetryHandler) GetGPUTelemetry(c *gin.Context) {
 	_, err := h.gpuRepo.GetByUUID(uuid)
 	if err != nil {
 		if err == domain.ErrGPUNotFound {
+			slog.Info("GPU not found",
+				"uuid", uuid,
+				"path", c.Request.URL.Path,
+			)
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
 				Error:     "GPU not found",
 				Message:   "No GPU found with UUID: " + uuid,
@@ -62,6 +67,11 @@ func (h *TelemetryHandler) GetGPUTelemetry(c *gin.Context) {
 			})
 			return
 		}
+		slog.Error("Failed to verify GPU",
+			"error", err,
+			"uuid", uuid,
+			"path", c.Request.URL.Path,
+		)
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:     "Failed to verify GPU",
 			Message:   "Internal server error occurred while verifying GPU",
@@ -114,6 +124,13 @@ func (h *TelemetryHandler) GetGPUTelemetry(c *gin.Context) {
 	// Retrieve telemetry data
 	telemetry, err := h.telemetryRepo.GetByGPU(uuid, filter)
 	if err != nil {
+		slog.Error("Failed to retrieve telemetry data",
+			"error", err,
+			"uuid", uuid,
+			"path", c.Request.URL.Path,
+			"has_start_time", filter.StartTime != nil,
+			"has_end_time", filter.EndTime != nil,
+		)
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:     "Failed to retrieve telemetry data",
 			Message:   "Internal server error occurred while fetching telemetry",
@@ -121,6 +138,12 @@ func (h *TelemetryHandler) GetGPUTelemetry(c *gin.Context) {
 		})
 		return
 	}
+
+	slog.Info("Retrieved telemetry data",
+		"uuid", uuid,
+		"count", len(telemetry),
+		"path", c.Request.URL.Path,
+	)
 
 	// Convert domain models to DTOs
 	response := dto.ToTelemetryListResponse(telemetry, uuid, filter)

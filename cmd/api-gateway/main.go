@@ -7,11 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/api"
+	"github.com/arnabghosh/gpu-metrics-streamer/internal/config"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/inmemory"
+	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/mongodb"
 
 	_ "github.com/arnabghosh/gpu-metrics-streamer/docs/swagger" // Import generated swagger docs
 )
@@ -46,7 +47,7 @@ func main() {
 	// Load configuration from environment
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = config.DefaultAPIPort
 	}
 
 	// Initialize storage repositories
@@ -58,7 +59,7 @@ func main() {
 		// Use MongoDB
 		slog.Info("Using MongoDB storage", "mongodb_uri", mongoURI)
 
-		mongoGPURepo, err := storage.NewMongoGPURepository(mongoURI, "telemetry", "gpus")
+		mongoGPURepo, err := mongodb.NewGPURepository(mongoURI, config.DefaultMongoDatabase, config.DefaultMongoGPUCollection)
 		if err != nil {
 			slog.Error("Failed to connect to MongoDB for GPU", "error", err)
 			os.Exit(1)
@@ -66,7 +67,7 @@ func main() {
 		defer mongoGPURepo.Close(context.Background())
 		gpuRepo = mongoGPURepo
 
-		mongoTelemetryRepo, err := storage.NewMongoTelemetryRepository(mongoURI, "telemetry", "metrics")
+		mongoTelemetryRepo, err := mongodb.NewTelemetryRepository(mongoURI, config.DefaultMongoDatabase, config.DefaultMongoMetricsCollection)
 		if err != nil {
 			slog.Error("Failed to connect to MongoDB for telemetry", "error", err)
 			os.Exit(1)
@@ -97,9 +98,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":" + port,
 		Handler:      router.Engine(),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  config.DefaultReadTimeout,
+		WriteTimeout: config.DefaultWriteTimeout,
+		IdleTimeout:  config.DefaultIdleTimeout,
 	}
 
 	slog.Info("API Gateway initialized successfully",
@@ -123,8 +124,8 @@ func main() {
 
 	slog.Info("Shutting down API Gateway...")
 
-	// Give outstanding requests 30 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Give outstanding requests time to complete
+	ctx, cancel := context.WithTimeout(context.Background(), config.DefaultShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {

@@ -27,7 +27,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         - name: QUEUE_SERVICE_URL
-          value: {{ .Values.env.queueUrl | quote }}
+          value: {{ .Values.env.queueServiceUrl | quote }}
         - name: BATCH_SIZE
           value: {{ .Values.env.batchSize | quote }}
         - name: MAX_CONCURRENT_HANDLERS

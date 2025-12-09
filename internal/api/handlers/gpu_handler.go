@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -34,6 +35,11 @@ func NewGPUHandler(gpuRepo storage.GPURepository) *GPUHandler {
 func (h *GPUHandler) ListGPUs(c *gin.Context) {
 	gpus, err := h.gpuRepo.List()
 	if err != nil {
+		slog.Error("Failed to retrieve GPUs",
+			"error", err,
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+		)
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:     "Failed to retrieve GPUs",
 			Message:   "Internal server error occurred while fetching GPU list",
@@ -41,6 +47,11 @@ func (h *GPUHandler) ListGPUs(c *gin.Context) {
 		})
 		return
 	}
+
+	slog.Info("Listed GPUs",
+		"count", len(gpus),
+		"path", c.Request.URL.Path,
+	)
 
 	// Convert domain models to DTOs
 	response := dto.ToGPUListResponse(gpus)
@@ -74,6 +85,10 @@ func (h *GPUHandler) GetGPU(c *gin.Context) {
 	gpu, err := h.gpuRepo.GetByUUID(uuid)
 	if err != nil {
 		if err == domain.ErrGPUNotFound {
+			slog.Info("GPU not found",
+				"uuid", uuid,
+				"path", c.Request.URL.Path,
+			)
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
 				Error:     "GPU not found",
 				Message:   "No GPU found with UUID: " + uuid,
@@ -81,6 +96,11 @@ func (h *GPUHandler) GetGPU(c *gin.Context) {
 			})
 			return
 		}
+		slog.Error("Failed to retrieve GPU",
+			"error", err,
+			"uuid", uuid,
+			"path", c.Request.URL.Path,
+		)
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:     "Failed to retrieve GPU",
 			Message:   "Internal server error occurred",
