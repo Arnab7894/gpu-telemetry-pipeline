@@ -19,5 +19,5 @@ resources:
 env:
   csvFilePath: "/app/data/metrics.csv"
   streamInterval: "1s"
-  queueServiceUrl: "http://queue-service:8081"
+  redisUrl: "redis://redis:6379"
   logLevel: "info"

@@ -27,8 +27,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        - name: QUEUE_SERVICE_URL
-          value: {{ .Values.collector.env.queueServiceUrl | quote }}
+        - name: REDIS_URL
+          value: {{ .Values.collector.env.redisUrl | quote }}
         - name: MONGODB_URI
           value: {{ .Values.collector.env.mongodbUri | quote }}
         - name: BATCH_SIZE

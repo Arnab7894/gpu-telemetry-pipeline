@@ -31,8 +31,8 @@ spec:
               fieldPath: metadata.name
         - name: STREAM_INTERVAL
           value: {{ .Values.streamer.env.streamInterval | quote }}
-        - name: QUEUE_SERVICE_URL
-          value: {{ .Values.streamer.env.queueServiceUrl | quote }}
+        - name: REDIS_URL
+          value: {{ .Values.streamer.env.redisUrl | quote }}
         - name: LOG_LEVEL
           value: {{ .Values.streamer.env.logLevel | quote }}
         resources:

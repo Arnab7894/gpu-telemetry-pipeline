@@ -26,9 +26,6 @@ const (
 	DefaultStreamerInstanceID = "streamer-1"
 	DefaultStreamerLoopMode   = true
 
-	// Queue Service defaults
-	DefaultQueueServicePort = 8080
-
 	// MongoDB defaults
 	DefaultMongoDatabase          = "telemetry"
 	DefaultMongoGPUCollection     = "gpus"

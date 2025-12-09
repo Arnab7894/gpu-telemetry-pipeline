@@ -1,0 +1,6 @@
+apiVersion: v2
+name: redis
+description: Redis message broker for GPU Telemetry Pipeline
+type: application
+version: 1.0.0
+appVersion: "7.2"

@@ -1,0 +1,40 @@
+# Default values for redis
+# This is a YAML-formatted file.
+
+replicaCount: 1
+
+image:
+  repository: redis
+  tag: "7.2-alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 6379
+  targetPort: 6379
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Redis configuration
+redis:
+  # Maximum memory for Redis (0 = unlimited)
+  maxmemory: "256mb"
+  # Eviction policy when maxmemory is reached
+  maxmemoryPolicy: "allkeys-lru"
+  # Enable AOF persistence for durability
+  appendonly: "yes"
+  # AOF fsync policy (always, everysec, no)
+  appendfsync: "everysec"
+
+# Persistence
+persistence:
+  enabled: true
+  storageClass: "standard"
+  accessMode: ReadWriteOnce
+  size: 1Gi

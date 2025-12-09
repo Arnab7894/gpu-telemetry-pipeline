@@ -27,31 +27,27 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize message queue (HTTP or in-memory)
-	var queue mq.MessageQueue
-	queueServiceURL := os.Getenv("QUEUE_SERVICE_URL")
+	// Initialize Redis message queue
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://redis:6379" // Default for Kubernetes deployment
+	}
 
-	if queueServiceURL != "" {
-		// Use HTTP queue client (for multi-pod deployment)
-		logger.Info("Using HTTP queue client",
-			"queue_service_url", queueServiceURL,
-			"consumer_group", "streamers",
-			"consumer_id", config.InstanceID,
-		)
+	logger.Info("Using Redis queue",
+		"redis_url", redisURL,
+		"consumer_group", "streamers",
+		"consumer_id", config.InstanceID,
+	)
 
-		queue = mq.NewHTTPQueueClient(mq.HTTPQueueConfig{
-			BaseURL:       queueServiceURL,
-			ConsumerGroup: "streamers",
-			ConsumerID:    config.InstanceID,
-		}, logger)
-	} else {
-		// Use in-memory queue (for single-process/testing)
-		logger.Info("Using in-memory queue")
+	queue, err := mq.NewRedisQueue(mq.RedisQueueConfig{
+		RedisURL:      redisURL,
+		ConsumerGroup: "streamers",
+		ConsumerID:    config.InstanceID,
+	}, logger)
 
-		queue = mq.NewInMemoryQueue(mq.InMemoryQueueConfig{
-			BufferSize: config.QueueBufferSize,
-			MaxWorkers: config.QueueWorkers,
-		})
+	if err != nil {
+		logger.Error("Failed to create Redis queue", "error", err)
+		os.Exit(1)
 	}
 
 	if err := queue.Start(ctx); err != nil {
@@ -64,12 +60,7 @@ func main() {
 		"instance_id", config.InstanceID,
 		"interval", config.StreamInterval,
 		"loop_mode", config.LoopMode,
-		"queue_type", func() string {
-			if queueServiceURL != "" {
-				return "http"
-			}
-			return "inmemory"
-		}(),
+		"queue_type", "redis",
 	)
 
 	// Initialize GPU repository

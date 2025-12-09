@@ -1,4 +1,4 @@
-.PHONY: build test run-streamer run-collector run-api clean cover openapi docker-build docker-streamer docker-collector docker-api docker-queue local-deploy local-cleanup help
+.PHONY: build test run-streamer run-collector run-api clean cover openapi docker-build docker-streamer docker-collector docker-api local-deploy local-cleanup help
 
 # Docker image configuration
 REGISTRY ?=
@@ -67,7 +67,7 @@ openapi:
 swagger: openapi
 
 # Build Docker images (all at once)
-docker-build: docker-streamer docker-collector docker-api docker-queue
+docker-build: docker-streamer docker-collector docker-api
 	@echo "✅ All Docker images built successfully"
 	@echo "Registry: $(if $(REGISTRY),$(REGISTRY),local)"
 	@echo "Tag: $(TAG)"
@@ -87,11 +87,6 @@ docker-api:
 	@echo "Building API Gateway Docker image..."
 	@docker build -t $(IMAGE_PREFIX)gpu-telemetry-api:$(TAG) -f Dockerfile.api-gateway .
 	@echo "✅ $(IMAGE_PREFIX)gpu-telemetry-api:$(TAG) built"
-
-docker-queue:
-	@echo "Building Queue Service Docker image..."
-	@docker build -t $(IMAGE_PREFIX)gpu-telemetry-queue:$(TAG) -f Dockerfile.queue-service .
-	@echo "✅ $(IMAGE_PREFIX)gpu-telemetry-queue:$(TAG) built"
 
 # Clean build artifacts
 clean:
@@ -138,16 +133,15 @@ local-deploy:
 	@kind load docker-image gpu-telemetry-streamer:latest --name $(CLUSTER_NAME)
 	@kind load docker-image gpu-telemetry-collector:latest --name $(CLUSTER_NAME)
 	@kind load docker-image gpu-telemetry-api:latest --name $(CLUSTER_NAME)
-	@kind load docker-image gpu-telemetry-queue:latest --name $(CLUSTER_NAME)
 	@echo "✅ Images loaded successfully"
 	@echo ""
-	@echo "[4/6] Installing Helm charts..."
+	@echo "[4/5] Installing Helm charts..."
 	@echo "  Installing MongoDB..."
 	@helm upgrade --install mongodb ./charts/mongodb \
 		--namespace $(NAMESPACE) \
 		--wait --timeout 5m
-	@echo "  Installing Queue Service..."
-	@helm upgrade --install queue-service ./charts/queue-service \
+	@echo "  Installing Redis..."
+	@helm upgrade --install redis ./charts/redis \
 		--namespace $(NAMESPACE) \
 		--wait --timeout 5m
 	@echo "  Installing Streamer..."
@@ -224,7 +218,6 @@ help:
 	@echo "  docker-streamer - Build Streamer Docker image (REGISTRY= TAG=latest)"
 	@echo "  docker-collector- Build Collector Docker image (REGISTRY= TAG=latest)"
 	@echo "  docker-api      - Build API Gateway Docker image (REGISTRY= TAG=latest)"
-	@echo "  docker-queue    - Build Queue Service Docker image (REGISTRY= TAG=latest)"
 	@echo "  local-deploy    - Deploy entire stack to local kind cluster (CLUSTER_NAME=gpu-telemetry)"
 	@echo "  local-cleanup   - Clean up local kind cluster and port-forwards"
 	@echo "  clean           - Remove build artifacts and coverage reports"
