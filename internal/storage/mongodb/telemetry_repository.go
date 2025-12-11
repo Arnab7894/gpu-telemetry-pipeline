@@ -104,6 +104,11 @@ func (r *TelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter
 	// Sort by timestamp ascending
 	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: 1}})
 
+	// Apply limit if specified
+	if filter.Limit != nil {
+		opts.SetLimit(int64(*filter.Limit))
+	}
+
 	cursor, err := coll.Find(context.Background(), queryFilter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query telemetry: %w", err)

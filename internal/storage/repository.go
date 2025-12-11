@@ -10,6 +10,7 @@ import (
 type TimeFilter struct {
 	StartTime *time.Time
 	EndTime   *time.Time
+	Limit     *int
 }
 
 // TelemetryRepository defines the interface for telemetry data storage

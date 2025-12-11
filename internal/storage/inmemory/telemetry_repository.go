@@ -133,6 +133,11 @@ func (r *TelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter
 		return filtered[i].Timestamp.Before(filtered[j].Timestamp)
 	})
 
+	// Apply limit if specified
+	if filter.Limit != nil && len(filtered) > *filter.Limit {
+		filtered = filtered[:*filter.Limit]
+	}
+
 	return filtered, nil
 }
 
