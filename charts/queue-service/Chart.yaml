@@ -1,0 +1,6 @@
+apiVersion: v2
+name: queue-service
+description: A Helm chart for GPU Telemetry Queue Service
+type: application
+version: 0.1.0
+appVersion: "1.0"

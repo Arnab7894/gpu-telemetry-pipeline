@@ -1,0 +1,45 @@
+replicaCount: 1
+
+image:
+  repository: gpu-telemetry-queueservice
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+env:
+  - name: PORT
+    value: "8080"
+  - name: REDIS_URL
+    value: "redis://redis:6379"
+  - name: VISIBILITY_TIMEOUT
+    value: "5m"
+  - name: MAX_RETRIES
+    value: "3"
+  - name: LOG_LEVEL
+    value: "info"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 30
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10

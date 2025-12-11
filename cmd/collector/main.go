@@ -30,28 +30,23 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize Redis message queue
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		redisURL = "redis://redis:6379" // Default for Kubernetes deployment
+	// Initialize HTTP Queue Client (connects to Queue Service)
+	queueServiceURL := os.Getenv("QUEUE_SERVICE_URL")
+	if queueServiceURL == "" {
+		queueServiceURL = "http://queue-service:8080" // Default for Kubernetes deployment
 	}
 
-	logger.Info("Using Redis queue",
-		"redis_url", redisURL,
+	logger.Info("Using HTTP queue client",
+		"queue_service_url", queueServiceURL,
 		"consumer_group", "collectors",
 		"consumer_id", config.InstanceID,
 	)
 
-	queue, err := mq.NewRedisQueue(mq.RedisQueueConfig{
-		RedisURL:      redisURL,
+	queue := mq.NewHTTPQueueClient(mq.HTTPQueueConfig{
+		BaseURL:       queueServiceURL,
 		ConsumerGroup: "collectors",
 		ConsumerID:    config.InstanceID,
 	}, logger)
-
-	if err != nil {
-		logger.Error("Failed to create Redis queue", "error", err)
-		os.Exit(1)
-	}
 
 	if err := queue.Start(ctx); err != nil {
 		logger.Error("Failed to start message queue", "error", err)
@@ -62,7 +57,7 @@ func main() {
 		"instance_id", config.InstanceID,
 		"batch_size", config.BatchSize,
 		"max_concurrent", config.MaxConcurrentHandlers,
-		"queue_type", "redis",
+		"queue_type", "http",
 	)
 
 	// Initialize repositories
@@ -127,14 +122,12 @@ func main() {
 
 	// Final statistics
 	stats := telemetryCollector.Stats()
-	queueStats := queue.Stats()
 
 	logger.Info("Shutdown complete",
 		"messages_processed", stats.MessagesProcessed,
 		"messages_errors", stats.MessagesErrors,
 		"gpus_stored", stats.GPUsStored,
 		"telemetry_stored", stats.TelemetryStored,
-		"queue_delivered", queueStats.TotalDelivered,
 	)
 
 	fmt.Println("Telemetry collector shut down gracefully")

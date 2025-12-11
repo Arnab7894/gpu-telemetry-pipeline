@@ -51,7 +51,7 @@ func NewHTTPQueueClient(config HTTPQueueConfig, logger *slog.Logger) *HTTPQueueC
 	}
 
 	if config.Timeout == 0 {
-		config.Timeout = 30 * time.Second
+		config.Timeout = 5 * time.Minute // Increased to allow full batch delivery
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -84,13 +84,8 @@ func (c *HTTPQueueClient) Start(ctx context.Context) error {
 func (c *HTTPQueueClient) Publish(ctx context.Context, msg *Message) error {
 	url := fmt.Sprintf("%s/api/v1/queue/publish", c.baseURL)
 
-	payload := map[string]interface{}{
-		"topic":    msg.Topic,
-		"payload":  msg.Payload,
-		"metadata": msg.Metadata,
-	}
-
-	body, err := json.Marshal(payload)
+	// Send the entire message object to preserve ID, timestamp, and headers
+	body, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal publish request: %w", err)
 	}
@@ -130,9 +125,6 @@ func (c *HTTPQueueClient) Subscribe(ctx context.Context, topic string, handler M
 	}
 	c.mu.Unlock()
 
-	url := fmt.Sprintf("%s/api/v1/queue/subscribe?topic=%s&consumer_group=%s&consumer_id=%s",
-		c.baseURL, topic, c.consumerGroup, c.consumerID)
-
 	subCtx, subCancel := context.WithCancel(ctx)
 
 	sub := &subscription{
@@ -146,8 +138,8 @@ func (c *HTTPQueueClient) Subscribe(ctx context.Context, topic string, handler M
 	c.subscriptions[topic] = sub
 	c.mu.Unlock()
 
-	// Start SSE connection in goroutine
-	go c.handleSSEConnection(subCtx, sub, url)
+	// Start batch/prefetch polling in goroutine
+	go c.handleBatchPolling(subCtx, sub)
 
 	c.logger.Info("Subscribed to topic",
 		"topic", topic,
@@ -158,7 +150,122 @@ func (c *HTTPQueueClient) Subscribe(ctx context.Context, topic string, handler M
 	return nil
 }
 
-// handleSSEConnection handles the Server-Sent Events stream
+// handleBatchPolling polls for messages using batch/prefetch API (RabbitMQ-style)
+func (c *HTTPQueueClient) handleBatchPolling(ctx context.Context, sub *subscription) {
+	defer close(sub.doneChan)
+
+	prefetchCount := 500                   // Number of messages to fetch per request
+	pollInterval := 100 * time.Millisecond // How often to poll when no messages
+
+	c.logger.Info("Starting batch polling",
+		"topic", sub.topic,
+		"prefetch_count", prefetchCount,
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			c.logger.Info("Subscription cancelled", "topic", sub.topic)
+			return
+		default:
+		}
+
+		// Fetch batch of messages
+		url := fmt.Sprintf("%s/api/v1/queue/fetch?topic=%s&consumer_group=%s&consumer_id=%s&prefetch=%d",
+			c.baseURL, sub.topic, c.consumerGroup, c.consumerID, prefetchCount)
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			c.logger.Error("Failed to create fetch request",
+				"topic", sub.topic,
+				"error", err,
+			)
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			c.logger.Error("Failed to fetch messages",
+				"topic", sub.topic,
+				"error", err,
+			)
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			c.logger.Error("Fetch failed",
+				"topic", sub.topic,
+				"status", resp.StatusCode,
+				"body", string(bodyBytes),
+			)
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		// Parse batch response
+		var batchResp struct {
+			Messages []*Message `json:"messages"`
+			Count    int        `json:"count"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&batchResp); err != nil {
+			resp.Body.Close()
+			c.logger.Error("Failed to decode batch response",
+				"topic", sub.topic,
+				"error", err,
+			)
+			time.Sleep(pollInterval)
+			continue
+		}
+		resp.Body.Close()
+
+		if batchResp.Count == 0 {
+			// No messages available, wait before polling again
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		c.logger.Debug("Batch fetched",
+			"topic", sub.topic,
+			"count", batchResp.Count,
+		)
+
+		// Process all messages in batch
+		for _, msg := range batchResp.Messages {
+			// Handle message
+			if err := sub.handler(ctx, msg); err != nil {
+				c.logger.Error("Handler error",
+					"topic", sub.topic,
+					"message_id", msg.ID,
+					"error", err,
+				)
+				// NACK the message
+				if ackErr := c.Nack(sub.topic, msg.ID); ackErr != nil {
+					c.logger.Error("Failed to NACK message",
+						"message_id", msg.ID,
+						"error", ackErr,
+					)
+				}
+			} else {
+				// ACK the message
+				if ackErr := c.Ack(sub.topic, msg.ID); ackErr != nil {
+					c.logger.Error("Failed to ACK message",
+						"message_id", msg.ID,
+						"error", ackErr,
+					)
+				}
+			}
+		}
+
+		// After processing batch, immediately poll for next batch (no delay)
+	}
+}
+
+// handleSSEConnection handles the Server-Sent Events stream (DEPRECATED - kept for backward compatibility)
 func (c *HTTPQueueClient) handleSSEConnection(ctx context.Context, sub *subscription, url string) {
 	defer close(sub.doneChan)
 

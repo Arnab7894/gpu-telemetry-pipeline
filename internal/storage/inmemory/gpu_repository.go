@@ -11,20 +11,20 @@ import (
 //
 // Future MongoDB Implementation Example:
 //
-//type MongoGPURepository struct {
-//    collection *mongo.Collection
-//}
+//	type MongoGPURepository struct {
+//	   collection *mongo.Collection
+//	}
 //
-//func (r *MongoGPURepository) Store(gpu *domain.GPU) error {
-//    _, err := r.collection.InsertOne(context.TODO(), gpu)
-//    return err
-//}
+//	func (r *MongoGPURepository) Store(gpu *domain.GPU) error {
+//	   _, err := r.collection.InsertOne(context.TODO(), gpu)
+//	   return err
+//	}
 //
-//func (r *MongoGPURepository) GetByUUID(uuid string) (*domain.GPU, error) {
-//    var gpu domain.GPU
-//    err := r.collection.FindOne(context.TODO(), bson.M{"uuid": uuid}).Decode(&gpu)
-//    return &gpu, err
-//}
+//	func (r *MongoGPURepository) GetByUUID(uuid string) (*domain.GPU, error) {
+//	   var gpu domain.GPU
+//	   err := r.collection.FindOne(context.TODO(), bson.M{"uuid": uuid}).Decode(&gpu)
+//	   return &gpu, err
+//	}
 //
 // To use MongoDB, simply inject MongoGPURepository instead of InMemoryGPURepository
 // via dependency injection in main.go or a factory pattern.
@@ -54,6 +54,26 @@ func (r *GPURepository) Store(gpu *domain.GPU) error {
 	defer r.mu.Unlock()
 
 	r.data[gpu.UUID] = gpu
+	return nil
+}
+
+// BulkStore persists or updates multiple GPU records efficiently
+// Thread-safe for concurrent writes
+func (r *GPURepository) BulkStore(gpus []*domain.GPU) error {
+	if len(gpus) == 0 {
+		return nil
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, gpu := range gpus {
+		if gpu == nil || gpu.UUID == "" {
+			continue // Skip invalid entries
+		}
+		r.data[gpu.UUID] = gpu
+	}
+
 	return nil
 }
 

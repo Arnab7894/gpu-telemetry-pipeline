@@ -54,6 +54,35 @@ func (r *TelemetryRepository) Store(telemetry *domain.TelemetryPoint) error {
 	return nil
 }
 
+// BulkStore stores multiple telemetry points efficiently using MongoDB bulk insert
+func (r *TelemetryRepository) BulkStore(telemetry []*domain.TelemetryPoint) error {
+	if len(telemetry) == 0 {
+		return nil
+	}
+
+	coll := r.client.Database(r.database).Collection(r.collection)
+
+	// Convert to []interface{} for InsertMany
+	docs := make([]interface{}, len(telemetry))
+	for i, t := range telemetry {
+		docs[i] = t
+	}
+
+	// Use ordered=false for better performance (continues on error)
+	opts := options.InsertMany().SetOrdered(false)
+	_, err := coll.InsertMany(context.Background(), docs, opts)
+	if err != nil {
+		// Check if it's a duplicate key error (which is OK)
+		if mongo.IsDuplicateKeyError(err) {
+			// Some duplicates are OK, but log the count
+			return fmt.Errorf("some telemetry points already exist: %w", err)
+		}
+		return fmt.Errorf("failed to bulk insert telemetry: %w", err)
+	}
+
+	return nil
+}
+
 // GetByGPU retrieves telemetry for a specific GPU, ordered by timestamp
 func (r *TelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter) ([]*domain.TelemetryPoint, error) {
 	coll := r.client.Database(r.database).Collection(r.collection)

@@ -17,6 +17,9 @@ type TelemetryRepository interface {
 	// Store persists a telemetry point
 	Store(telemetry *domain.TelemetryPoint) error
 
+	// BulkStore persists multiple telemetry points efficiently
+	BulkStore(telemetry []*domain.TelemetryPoint) error
+
 	// GetByGPU retrieves all telemetry for a specific GPU, ordered by timestamp
 	// Supports optional time filtering
 	GetByGPU(gpuUUID string, filter TimeFilter) ([]*domain.TelemetryPoint, error)
@@ -29,6 +32,9 @@ type TelemetryRepository interface {
 type GPURepository interface {
 	// Store persists or updates a GPU record
 	Store(gpu *domain.GPU) error
+
+	// BulkStore persists or updates multiple GPU records efficiently
+	BulkStore(gpus []*domain.GPU) error
 
 	// GetByUUID retrieves a GPU by its UUID
 	GetByUUID(uuid string) (*domain.GPU, error)

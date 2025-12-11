@@ -13,42 +13,42 @@ import (
 //
 // Future MongoDB Implementation Example:
 //
-//type MongoTelemetryRepository struct {
-//    collection *mongo.Collection
-//}
+//	type MongoTelemetryRepository struct {
+//	   collection *mongo.Collection
+//	}
 //
-//func (r *MongoTelemetryRepository) Store(telemetry *domain.TelemetryPoint) error {
-//    _, err := r.collection.InsertOne(context.TODO(), telemetry)
-//    return err
-//}
+//	func (r *MongoTelemetryRepository) Store(telemetry *domain.TelemetryPoint) error {
+//	   _, err := r.collection.InsertOne(context.TODO(), telemetry)
+//	   return err
+//	}
 //
-//func (r *MongoTelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter) ([]*domain.TelemetryPoint, error) {
-//    findOptions := options.Find().SetSort(bson.D{{"timestamp", 1}})
-//    query := bson.M{"gpuuuid": gpuUUID}
+//	func (r *MongoTelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter) ([]*domain.TelemetryPoint, error) {
+//	   findOptions := options.Find().SetSort(bson.D{{"timestamp", 1}})
+//	   query := bson.M{"gpuuuid": gpuUUID}
 //
-//    if filter.StartTime != nil {
-//        query["timestamp"] = bson.M{"$gte": *filter.StartTime}
-//    }
-//    if filter.EndTime != nil {
-//        if _, ok := query["timestamp"]; ok {
-//            query["timestamp"].(bson.M)["$lte"] = *filter.EndTime
-//        } else {
-//            query["timestamp"] = bson.M{"$lte": *filter.EndTime}
-//        }
-//    }
+//	   if filter.StartTime != nil {
+//	       query["timestamp"] = bson.M{"$gte": *filter.StartTime}
+//	   }
+//	   if filter.EndTime != nil {
+//	       if _, ok := query["timestamp"]; ok {
+//	           query["timestamp"].(bson.M)["$lte"] = *filter.EndTime
+//	       } else {
+//	           query["timestamp"] = bson.M{"$lte": *filter.EndTime}
+//	       }
+//	   }
 //
-//    cursor, err := r.collection.Find(context.TODO(), query, findOptions)
-//    if err != nil {
-//        return nil, err
-//    }
-//    defer cursor.Close(context.TODO())
+//	   cursor, err := r.collection.Find(context.TODO(), query, findOptions)
+//	   if err != nil {
+//	       return nil, err
+//	   }
+//	   defer cursor.Close(context.TODO())
 //
-//    var results []*domain.TelemetryPoint
-//    if err := cursor.All(context.TODO(), &results); err != nil {
-//        return nil, err
-//    }
-//    return results, nil
-//}
+//	   var results []*domain.TelemetryPoint
+//	   if err := cursor.All(context.TODO(), &results); err != nil {
+//	       return nil, err
+//	   }
+//	   return results, nil
+//	}
 //
 // To use MongoDB, inject MongoTelemetryRepository instead of InMemoryTelemetryRepository.
 type TelemetryRepository struct {
@@ -77,6 +77,26 @@ func (r *TelemetryRepository) Store(telemetry *domain.TelemetryPoint) error {
 	defer r.mu.Unlock()
 
 	r.data[telemetry.GPUUUID] = append(r.data[telemetry.GPUUUID], telemetry)
+	return nil
+}
+
+// BulkStore persists multiple telemetry points efficiently
+// Thread-safe for concurrent writes
+func (r *TelemetryRepository) BulkStore(telemetry []*domain.TelemetryPoint) error {
+	if len(telemetry) == 0 {
+		return nil
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, t := range telemetry {
+		if t == nil || t.GPUUUID == "" {
+			continue // Skip invalid entries
+		}
+		r.data[t.GPUUUID] = append(r.data[t.GPUUUID], t)
+	}
+
 	return nil
 }
 

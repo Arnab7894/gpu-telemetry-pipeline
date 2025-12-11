@@ -108,6 +108,7 @@ func (r *CSVRecord) ToTelemetryPoint() *domain.TelemetryPoint {
 		GPUUUID:    r.UUID,
 		MetricName: r.MetricName,
 		Value:      r.Value,
+		LabelsRaw:  r.LabelsRaw,
 		// Timestamp will be set by streamer
 	}
 }

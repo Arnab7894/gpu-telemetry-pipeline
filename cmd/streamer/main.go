@@ -27,28 +27,23 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize Redis message queue
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		redisURL = "redis://redis:6379" // Default for Kubernetes deployment
+	// Initialize HTTP Queue Client (connects to Queue Service)
+	queueServiceURL := os.Getenv("QUEUE_SERVICE_URL")
+	if queueServiceURL == "" {
+		queueServiceURL = "http://queue-service:8080" // Default for Kubernetes deployment
 	}
 
-	logger.Info("Using Redis queue",
-		"redis_url", redisURL,
+	logger.Info("Using HTTP queue client",
+		"queue_service_url", queueServiceURL,
 		"consumer_group", "streamers",
 		"consumer_id", config.InstanceID,
 	)
 
-	queue, err := mq.NewRedisQueue(mq.RedisQueueConfig{
-		RedisURL:      redisURL,
+	queue := mq.NewHTTPQueueClient(mq.HTTPQueueConfig{
+		BaseURL:       queueServiceURL,
 		ConsumerGroup: "streamers",
 		ConsumerID:    config.InstanceID,
 	}, logger)
-
-	if err != nil {
-		logger.Error("Failed to create Redis queue", "error", err)
-		os.Exit(1)
-	}
 
 	if err := queue.Start(ctx); err != nil {
 		logger.Error("Failed to start message queue", "error", err)
@@ -60,14 +55,32 @@ func main() {
 		"instance_id", config.InstanceID,
 		"interval", config.StreamInterval,
 		"loop_mode", config.LoopMode,
-		"queue_type", "redis",
+		"queue_type", "http",
+	)
+
+	// Initialize batch lock (Redis-based distributed lock)
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://redis:6379" // Default for Kubernetes
+	}
+
+	batchLock, err := streamer.NewBatchLock(redisURL, config.InstanceID, logger)
+	if err != nil {
+		logger.Error("Failed to initialize batch lock", "error", err)
+		os.Exit(1)
+	}
+	defer batchLock.Close()
+
+	logger.Info("Initialized batch lock",
+		"redis_url", redisURL,
+		"instance_id", config.InstanceID,
 	)
 
 	// Initialize GPU repository
 	gpuRepo := inmemory.NewGPURepository()
 
 	// Create streamer
-	telemetryStreamer := streamer.NewStreamer(config, queue, gpuRepo, logger)
+	telemetryStreamer := streamer.NewStreamer(config, queue, gpuRepo, batchLock, logger)
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -97,13 +110,10 @@ func main() {
 
 	// Final statistics
 	stats := telemetryStreamer.Stats()
-	queueStats := queue.Stats()
 
 	logger.Info("Shutdown complete",
 		"rows_sent", stats.RowsSent,
 		"errors", stats.ErrorCount,
-		"queue_published", queueStats.TotalPublished,
-		"queue_delivered", queueStats.TotalDelivered,
 	)
 
 	fmt.Println("Telemetry streamer shut down gracefully")

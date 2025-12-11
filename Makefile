@@ -1,4 +1,4 @@
-.PHONY: build test run-streamer run-collector run-api clean cover openapi docker-build docker-streamer docker-collector docker-api local-deploy local-cleanup help
+.PHONY: build test run-streamer run-collector run-api clean cover openapi docker-build docker-streamer docker-collector docker-api docker-queueservice local-deploy local-cleanup help
 
 # Docker image configuration
 REGISTRY ?=
@@ -11,6 +11,7 @@ build:
 	@go build -o bin/streamer ./cmd/streamer
 	@go build -o bin/collector ./cmd/collector
 	@go build -o bin/api-gateway ./cmd/api-gateway
+	@go build -o bin/queueservice ./cmd/queueservice
 	@echo "Build complete. Binaries in ./bin/"
 
 # Run tests
@@ -67,7 +68,7 @@ openapi:
 swagger: openapi
 
 # Build Docker images (all at once)
-docker-build: docker-streamer docker-collector docker-api
+docker-build: docker-streamer docker-collector docker-api docker-queueservice
 	@echo "✅ All Docker images built successfully"
 	@echo "Registry: $(if $(REGISTRY),$(REGISTRY),local)"
 	@echo "Tag: $(TAG)"
@@ -87,6 +88,11 @@ docker-api:
 	@echo "Building API Gateway Docker image..."
 	@docker build -t $(IMAGE_PREFIX)gpu-telemetry-api:$(TAG) -f Dockerfile.api-gateway .
 	@echo "✅ $(IMAGE_PREFIX)gpu-telemetry-api:$(TAG) built"
+
+docker-queueservice:
+	@echo "Building Queue Service Docker image..."
+	@docker build -t $(IMAGE_PREFIX)gpu-telemetry-queueservice:$(TAG) -f Dockerfile.queue-service .
+	@echo "✅ $(IMAGE_PREFIX)gpu-telemetry-queueservice:$(TAG) built"
 
 # Clean build artifacts
 clean:
@@ -133,15 +139,20 @@ local-deploy:
 	@kind load docker-image gpu-telemetry-streamer:latest --name $(CLUSTER_NAME)
 	@kind load docker-image gpu-telemetry-collector:latest --name $(CLUSTER_NAME)
 	@kind load docker-image gpu-telemetry-api:latest --name $(CLUSTER_NAME)
+	@kind load docker-image gpu-telemetry-queueservice:latest --name $(CLUSTER_NAME)
 	@echo "✅ Images loaded successfully"
 	@echo ""
-	@echo "[4/5] Installing Helm charts..."
+	@echo "[4/7] Installing Helm charts..."
 	@echo "  Installing MongoDB..."
 	@helm upgrade --install mongodb ./charts/mongodb \
 		--namespace $(NAMESPACE) \
 		--wait --timeout 5m
 	@echo "  Installing Redis..."
 	@helm upgrade --install redis ./charts/redis \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "  Installing Queue Service..."
+	@helm upgrade --install queue-service ./charts/queue-service \
 		--namespace $(NAMESPACE) \
 		--wait --timeout 5m
 	@echo "  Installing Streamer..."

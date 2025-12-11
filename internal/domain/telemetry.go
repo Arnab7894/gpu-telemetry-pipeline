@@ -24,6 +24,11 @@ type TelemetryPoint struct {
 	// This allows us to track real-time data flow through the system
 	Timestamp time.Time `json:"timestamp" bson:"timestamp"`
 
+	// BatchID identifies which batch this telemetry belongs to
+	// All records in a single CSV read share the same BatchID (timestamp)
+	// Format: RFC3339Nano timestamp when batch started
+	BatchID string `json:"batch_id,omitempty" bson:"batch_id,omitempty"`
+
 	// LabelsRaw contains raw Prometheus-style labels (CSV: labels_raw)
 	// Example: 'DCGM_FI_DRIVER_VERSION="535.129.03",Hostname="mtv5-dgx1-hgpu-031",...'
 	// Optional metadata for debugging and detailed analysis
@@ -31,9 +36,13 @@ type TelemetryPoint struct {
 }
 
 // GetUniqueKey returns a composite key for this telemetry point
-// Unique key: GPUUUID + MetricName + Timestamp
-// This ensures each telemetry record is uniquely identifiable
+// Unique key: GPUUUID + MetricName + BatchID
+// This ensures each telemetry record within a batch is uniquely identifiable
 func (t *TelemetryPoint) GetUniqueKey() string {
+	if t.BatchID != "" {
+		return t.GPUUUID + ":" + t.MetricName + ":" + t.BatchID
+	}
+	// Fallback to timestamp if no batch ID
 	return t.GPUUUID + ":" + t.MetricName + ":" + t.Timestamp.Format(time.RFC3339Nano)
 }
 
