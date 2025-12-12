@@ -15,9 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Valid UUID format for testing
+const testValidUUID = "GPU-12345678-1234-1234-1234-123456789abc"
+
 func TestTelemetryHandler_GetGPUTelemetry_Success(t *testing.T) {
+	// Use valid UUID format that matches the regex requirement
+	validUUID := "GPU-12345678-1234-1234-1234-123456789abc"
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      validUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -26,7 +31,7 @@ func TestTelemetryHandler_GetGPUTelemetry_Success(t *testing.T) {
 	baseTime := time.Date(2025, 1, 18, 12, 0, 0, 0, time.UTC)
 	mockTelemetry := []*domain.TelemetryPoint{
 		{
-			GPUUUID:    "gpu-001",
+			GPUUUID:    validUUID,
 			MetricName: "DCGM_FI_DEV_GPU_UTIL",
 			Value:      "85.5",
 			Timestamp:  baseTime,
@@ -36,7 +41,7 @@ func TestTelemetryHandler_GetGPUTelemetry_Success(t *testing.T) {
 
 	mockGPURepo := &MockGPURepository{
 		GetByUUIDFunc: func(uuid string) (*domain.GPU, error) {
-			if uuid == "gpu-001" {
+			if uuid == validUUID {
 				return mockGPU, nil
 			}
 			return nil, domain.ErrGPUNotFound
@@ -53,7 +58,8 @@ func TestTelemetryHandler_GetGPUTelemetry_Success(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry", nil)
+	// Use valid UUID format in URL
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+validUUID+"/telemetry?start_time=2024-01-01T00:00:00Z&end_time=2024-12-31T23:59:59Z", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -61,7 +67,7 @@ func TestTelemetryHandler_GetGPUTelemetry_Success(t *testing.T) {
 	var response dto.TelemetryListResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
-	assert.Equal(t, "gpu-001", response.GPUUUID)
+	assert.Equal(t, validUUID, response.GPUUUID)
 	assert.Equal(t, 1, response.Total)
 	assert.Len(t, response.Metrics, 1)
 	assert.Equal(t, "85.5", response.Metrics[0].Value)
@@ -69,7 +75,7 @@ func TestTelemetryHandler_GetGPUTelemetry_Success(t *testing.T) {
 
 func TestTelemetryHandler_GetGPUTelemetry_WithTimeFilter(t *testing.T) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -96,7 +102,7 @@ func TestTelemetryHandler_GetGPUTelemetry_WithTimeFilter(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry?start_time=2025-01-18T12:00:00Z&end_time=2025-01-18T13:00:00Z", nil)
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry?start_time=2025-01-18T12:00:00Z&end_time=2025-01-18T13:00:00Z", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -115,7 +121,9 @@ func TestTelemetryHandler_GetGPUTelemetry_GPUNotFound(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/nonexistent/telemetry", nil)
+	// Use a different valid UUID format that will not be found
+	notFoundUUID := "GPU-00000000-0000-0000-0000-000000000000"
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+notFoundUUID+"/telemetry", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -128,7 +136,7 @@ func TestTelemetryHandler_GetGPUTelemetry_GPUNotFound(t *testing.T) {
 
 func TestTelemetryHandler_GetGPUTelemetry_InvalidStartTime(t *testing.T) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -145,7 +153,7 @@ func TestTelemetryHandler_GetGPUTelemetry_InvalidStartTime(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry?start_time=invalid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry?start_time=invalid", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -158,7 +166,7 @@ func TestTelemetryHandler_GetGPUTelemetry_InvalidStartTime(t *testing.T) {
 
 func TestTelemetryHandler_GetGPUTelemetry_InvalidEndTime(t *testing.T) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -175,7 +183,7 @@ func TestTelemetryHandler_GetGPUTelemetry_InvalidEndTime(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry?end_time=invalid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry?end_time=invalid", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -188,7 +196,7 @@ func TestTelemetryHandler_GetGPUTelemetry_InvalidEndTime(t *testing.T) {
 
 func TestTelemetryHandler_GetGPUTelemetry_StartTimeAfterEndTime(t *testing.T) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -205,7 +213,7 @@ func TestTelemetryHandler_GetGPUTelemetry_StartTimeAfterEndTime(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry?start_time=2025-01-18T13:00:00Z&end_time=2025-01-18T12:00:00Z", nil)
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry?start_time=2025-01-18T13:00:00Z&end_time=2025-01-18T12:00:00Z", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -218,7 +226,7 @@ func TestTelemetryHandler_GetGPUTelemetry_StartTimeAfterEndTime(t *testing.T) {
 
 func TestTelemetryHandler_GetGPUTelemetry_EmptyResults(t *testing.T) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -240,7 +248,7 @@ func TestTelemetryHandler_GetGPUTelemetry_EmptyResults(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry", nil)
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -254,7 +262,7 @@ func TestTelemetryHandler_GetGPUTelemetry_EmptyResults(t *testing.T) {
 
 func TestTelemetryHandler_GetGPUTelemetry_RepositoryError(t *testing.T) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -276,7 +284,7 @@ func TestTelemetryHandler_GetGPUTelemetry_RepositoryError(t *testing.T) {
 	router, w := setupGinTest()
 	router.GET("/gpus/:uuid/telemetry", handler.GetGPUTelemetry)
 
-	req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry", nil)
+	req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -289,7 +297,7 @@ func TestTelemetryHandler_GetGPUTelemetry_RepositoryError(t *testing.T) {
 
 func BenchmarkTelemetryHandler_GetGPUTelemetry(b *testing.B) {
 	mockGPU := &domain.GPU{
-		UUID:      "gpu-001",
+		UUID:      testValidUUID,
 		DeviceID:  "nvidia0",
 		ModelName: "Tesla V100",
 		Hostname:  "host-001",
@@ -299,7 +307,7 @@ func BenchmarkTelemetryHandler_GetGPUTelemetry(b *testing.B) {
 	mockTelemetry := make([]*domain.TelemetryPoint, 100)
 	for i := 0; i < 100; i++ {
 		mockTelemetry[i] = &domain.TelemetryPoint{
-			GPUUUID:    "gpu-001",
+			GPUUUID:    testValidUUID,
 			MetricName: "DCGM_FI_DEV_GPU_UTIL",
 			Value:      "85.5",
 			Timestamp:  baseTime.Add(time.Duration(i) * time.Second),
@@ -326,7 +334,7 @@ func BenchmarkTelemetryHandler_GetGPUTelemetry(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/gpus/gpu-001/telemetry", nil)
+		req := httptest.NewRequest(http.MethodGet, "/gpus/"+testValidUUID+"/telemetry", nil)
 		router.ServeHTTP(w, req)
 	}
 }
