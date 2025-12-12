@@ -548,6 +548,108 @@ Please rewrite it into a **clean, comprehensive, user-friendly document** suitab
 
 ---
 
+## Manual Refinements and Corrections
+
+While LLM assistance significantly accelerated development, several issues emerged during implementation that required manual intervention and architectural corrections:
+
+### **1. Architecture Pattern Violations**
+**Issue**: Initial implementation combined Streamer and Collector into a single monolithic process.  
+**Impact**: Violated distributed system design principles and prevented independent scaling.  
+**Resolution**: Refactored into separate microservices communicating via HTTP-based message queue, enabling horizontal scaling and fault isolation.
+
+### **2. Helm Chart Modularity**
+**Issue**: Single umbrella chart combined Streamer, Queue Service, and Collector, creating tight coupling.  
+**Impact**: Difficult to version, deploy, and maintain components independently.  
+**Resolution**: Separated into individual Helm charts with proper dependency management for better modularity and lifecycle control.
+
+### **3. Data Persistence Strategy**
+**Issue**: In-memory storage used for telemetry data, leading to data loss on pod restarts.  
+**Impact**: Zero data durability in production scenarios.  
+**Resolution**: Integrated MongoDB for persistent storage, ensuring data reliability and supporting query requirements.
+
+### **4. Message Queue Backend**
+**Issue**: Custom queue implementation used in-memory storage for messages.  
+**Impact**: Limited scalability and message loss during failures.  
+**Resolution**: Migrated to Redis-backed storage with proper visibility timeout, ACK/NACK semantics, and Pending Entry List (PEL) for reliable message processing.
+
+### **5. Data Integrity Issues**
+**Issue**: Multiple data quality problems discovered during testing:
+- Incomplete CSV data parsing (missing fields)
+- Empty metric values not handled
+- Incorrect timestamp assignment (using CSV timestamp instead of ingestion time)
+
+**Resolution**: 
+- Enhanced CSV parser with validation and error handling
+- Added timestamp normalization using `time.Now()` at ingestion
+- Implemented data sanitization and validation layers
+
+### **6. Performance Bottlenecks**
+**Issue**: Single-message processing pattern caused severe throughput degradation.  
+**Impact**: Unable to handle high-frequency telemetry streams.  
+**Resolution**: Implemented batch processing with configurable batch sizes and flush intervals for both Streamer and Collector.
+
+### **7. Queue Consumption Fairness**
+**Issue**: Multiple Collector instances competing for messages without coordination led to uneven load distribution.  
+**Impact**: Some collectors idle while others overloaded.  
+**Resolution**: Implemented prefetch mechanism (RabbitMQ-style) limiting in-flight messages per consumer, ensuring fair work distribution.
+
+### **8. API Ordering Semantics**
+**Issue**: Telemetry endpoint returned data in ascending timestamp order (oldest first), contradicting Swagger specification.  
+**Impact**: Poor user experience for recent data queries.  
+**Resolution**: Corrected MongoDB query sort order from `{timestamp: 1}` to `{timestamp: -1}` to return newest data first.
+
+### **9. Kubernetes Resource Configuration**
+**Issue**: Helm charts lacked proper resource limits, health checks, and dependency sequencing.  
+**Impact**: Pod evictions, cascading failures, and deployment inconsistencies.  
+**Resolution**: 
+- Added CPU/memory requests and limits
+- Implemented readiness/liveness probes
+- Configured init containers for dependency waiting
+- Added proper service discovery via Kubernetes DNS
+
+### **10. Test Quality Issues**
+**Issue**: Test suite exhibited flakiness and insufficient coverage:
+- Race conditions in concurrent tests
+- Missing edge case validation
+- Async operations causing timing-dependent failures
+
+**Resolution**:
+- Added proper synchronization using channels and wait groups
+- Implemented deterministic test fixtures
+- Increased coverage for error paths and boundary conditions
+- Documented known limitations (e.g., Redis-dependent tests skip when unavailable)
+
+### **11. Documentation Gaps**
+**Issue**: README contained incomplete deployment instructions and missing troubleshooting guidance.  
+**Impact**: Difficult for new users to onboard and debug issues.  
+**Resolution**: Comprehensive rewrite including:
+- Step-by-step deployment workflows
+- Clear prerequisite documentation with installation links
+- Troubleshooting section for common issues
+- User workflow from deployment to API consumption
+
+### **12. Timestamp Handling Inconsistencies**
+**Issue**: Timestamps from CSV not properly parsed and stored, causing query filter failures.  
+**Impact**: Time-range queries returned incorrect or empty results.  
+**Resolution**:
+- Standardized on RFC3339 format across all components
+- Added timestamp validation in API handlers
+- Ensured MongoDB stores timestamps as proper date types for range queries
+
+---
+
+## Key Takeaways
+
+The AI-assisted development process required significant human oversight to:
+- Enforce architectural best practices and distributed system patterns
+- Identify and resolve data integrity issues through thorough testing
+- Optimize performance characteristics for production workloads
+- Ensure Kubernetes deployment reliability and operational readiness
+
+This iterative refinement process demonstrates that while LLMs excel at generating initial implementations, production-grade systems still require domain expertise, critical analysis, and rigorous validation.
+
+---
+
 ✅ **End of Prompt Log**
 
-This file can be used to reproducibly guide an LLM through building the entire GPU Telemetry Pipeline project step by step, while meeting most of assignment requirements.
+This file documents both the LLM prompts used to build the GPU Telemetry Pipeline and the essential manual refinements required to achieve a production-ready implementation.
