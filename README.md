@@ -544,12 +544,82 @@ make cover
 
 Coverage report is generated at `coverage.html`. Open it in a browser to see detailed coverage.
 
-### Integration Tests
+### System Tests
+
+System tests validate the **complete end-to-end pipeline** from CSV ingestion to API queries. They test the entire system as deployed on Kubernetes.
+
+**Prerequisites:**
+- A Kubernetes cluster with GPU telemetry services deployed (kind, minikube, GKE, EKS, etc.)
+- `kubectl` configured to access the cluster
+- API Gateway accessible at `localhost:8080` (use port-forwarding if needed)
+- `kubectl`, `curl`, and `jq` installed
+
+**Run system tests:**
 
 ```bash
-# Run integration test script
-./test-integration.sh
+# For local kind cluster (deployed with make local-deploy):
+make system-test
+
+# For remote or non-kind clusters:
+# First, ensure API Gateway is accessible locally
+kubectl port-forward service/api-gateway 8080:8080 -n default &
+
+# Then run the tests
+make system-test
+# or
+./system-test.sh
+
+# Customize namespace and port if needed:
+NAMESPACE=my-namespace API_PORT=9090 ./system-test.sh
 ```
+
+**What the system tests verify:**
+
+1. ✅ **API Gateway Health** - Ensures the API is responding
+2. ✅ **Data Ingestion** - Verifies telemetry data flows from CSV → Streamer → Queue → Collector → MongoDB
+3. ✅ **GPU Listing** - Tests `GET /api/v1/gpus` endpoint
+4. ✅ **GPU Details** - Tests `GET /api/v1/gpus/{uuid}` endpoint
+5. ✅ **Telemetry Retrieval** - Tests `GET /api/v1/gpus/{uuid}/telemetry` endpoint
+6. ✅ **Telemetry Ordering** - Confirms results are sorted by timestamp (newest first)
+7. ✅ **Time Range Filtering** - Tests `start_time` and `end_time` query parameters
+8. ✅ **Data Structure Validation** - Ensures all required fields are present
+9. ✅ **Error Handling** - Validates 400/404 responses for invalid requests
+10. ✅ **Swagger Documentation** - Checks Swagger UI accessibility
+11. ✅ **Component Health** - Reviews logs for errors across all services
+
+**Expected output:**
+
+```
+==========================================
+           TEST SUMMARY
+==========================================
+[SUCCESS] All system tests passed! ✓
+
+Test Results:
+  ✓ API Gateway Health Check
+  ✓ Data Ingestion (found 8 GPU(s))
+  ✓ List GPUs endpoint
+  ✓ Get GPU details endpoint
+  ✓ Get telemetry endpoint
+  ✓ Telemetry ordering (newest first)
+  ✓ Time range filtering
+  ✓ Data structure validation
+  ✓ Error handling (400 for invalid UUID)
+  ✓ Error handling (404 for non-existent GPU)
+  ✓ Swagger documentation
+  ✓ Component health check
+
+[SUCCESS] GPU Telemetry Pipeline is functioning correctly!
+==========================================
+```
+
+**Troubleshooting:**
+
+If system tests fail:
+1. Check pod status: `kubectl get pods -n default`
+2. View component logs: `kubectl logs -l app=<component> -n default`
+3. Verify port forwarding: `lsof -i :8080`
+4. Restart deployment if needed: `kubectl rollout restart deployment/<component> -n default`
 
 ### Manual API Testing
 

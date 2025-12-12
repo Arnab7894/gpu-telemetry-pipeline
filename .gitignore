@@ -38,3 +38,6 @@ api/swagger.yaml
 tmp/
 temp/
 *.log
+
+# Runtime logs
+logs/

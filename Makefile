@@ -1,4 +1,4 @@
-.PHONY: build test run-streamer run-collector run-api clean cover openapi docker-build docker-streamer docker-collector docker-api docker-queueservice local-deploy local-cleanup help
+.PHONY: build test system-test run-streamer run-collector run-api clean cover openapi docker-build docker-streamer docker-collector docker-api docker-queueservice local-deploy local-cleanup help
 
 # Docker image configuration
 REGISTRY ?=
@@ -35,6 +35,16 @@ cover:
 	@echo ""
 	@echo "Coverage report generated: coverage.html"
 	@echo "Open coverage.html in your browser to view detailed coverage"
+
+# Run system tests (end-to-end)
+system-test:
+	@echo "Running system tests..."
+	@echo "⚠️  NOTE: Tests expect API Gateway at localhost:8080"
+	@echo "⚠️  If testing remote cluster, ensure port-forwarding is active:"
+	@echo "    kubectl port-forward service/api-gateway 8080:8080 -n default"
+	@echo ""
+	@chmod +x system-test.sh
+	@./system-test.sh
 
 # Run streamer service
 run-streamer: build
@@ -389,6 +399,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build           - Build all service binaries"
 	@echo "  test            - Run all tests with race detector"
+	@echo "  system-test     - Run end-to-end system tests (requires running cluster)"
 	@echo "  cover           - Run tests with coverage report"
 	@echo "  run-streamer    - Build and run the Telemetry Streamer"
 	@echo "  run-collector   - Build and run the Telemetry Collector"
