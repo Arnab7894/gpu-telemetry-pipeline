@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"net/http/httptest"
-	
+
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/domain"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
 	"github.com/gin-gonic/gin"
@@ -13,6 +13,7 @@ type MockGPURepository struct {
 	ListFunc      func() ([]*domain.GPU, error)
 	GetByUUIDFunc func(uuid string) (*domain.GPU, error)
 	StoreFunc     func(gpu *domain.GPU) error
+	BulkStoreFunc func(gpus []*domain.GPU) error
 	CountFunc     func() int64
 }
 
@@ -37,6 +38,13 @@ func (m *MockGPURepository) Store(gpu *domain.GPU) error {
 	return nil
 }
 
+func (m *MockGPURepository) BulkStore(gpus []*domain.GPU) error {
+	if m.BulkStoreFunc != nil {
+		return m.BulkStoreFunc(gpus)
+	}
+	return nil
+}
+
 func (m *MockGPURepository) Count() int64 {
 	if m.CountFunc != nil {
 		return m.CountFunc()
@@ -46,9 +54,10 @@ func (m *MockGPURepository) Count() int64 {
 
 // MockTelemetryRepository implements storage.TelemetryRepository for testing
 type MockTelemetryRepository struct {
-	GetByGPUFunc func(gpuUUID string, filter storage.TimeFilter) ([]*domain.TelemetryPoint, error)
-	StoreFunc    func(point *domain.TelemetryPoint) error
-	CountFunc    func() int64
+	GetByGPUFunc  func(gpuUUID string, filter storage.TimeFilter) ([]*domain.TelemetryPoint, error)
+	StoreFunc     func(point *domain.TelemetryPoint) error
+	BulkStoreFunc func(points []*domain.TelemetryPoint) error
+	CountFunc     func() int64
 }
 
 func (m *MockTelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter) ([]*domain.TelemetryPoint, error) {
@@ -61,6 +70,13 @@ func (m *MockTelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFi
 func (m *MockTelemetryRepository) Store(point *domain.TelemetryPoint) error {
 	if m.StoreFunc != nil {
 		return m.StoreFunc(point)
+	}
+	return nil
+}
+
+func (m *MockTelemetryRepository) BulkStore(points []*domain.TelemetryPoint) error {
+	if m.BulkStoreFunc != nil {
+		return m.BulkStoreFunc(points)
 	}
 	return nil
 }

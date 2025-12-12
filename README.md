@@ -215,29 +215,27 @@ kubectl scale deployment gpu-telemetry-collector --replicas=5
 
 Follow the step-by-step guide in [E2E_TEST.md](E2E_TEST.md) to manually test the entire pipeline.
 
-### Automated System Test
+### API Testing
 
-Run the automated Go system test:
+Test the APIs manually using curl:
 
 ```bash
-# Option 1: Use the test runner script
-./test/e2e/run_test.sh
+# Setup port forwarding
+kubectl port-forward service/api-gateway 8080:8080 &
 
-# Option 2: Run directly (requires port-forward to be running)
-kubectl port-forward service/gpu-telemetry-api-gateway 8080:8080 &
-cd test/e2e
-go run system_test.go
+# Test 1: Health check
+curl http://localhost:8080/health
+
+# Test 2: List all GPUs
+curl http://localhost:8080/api/v1/gpus | jq
+
+# Test 3: Get telemetry for a specific GPU
+GPU_UUID=$(curl -s http://localhost:8080/api/v1/gpus | jq -r '.gpus[0].uuid')
+curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry" | jq
+
+# Test 4: Get telemetry with time filter
+curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry?start_time=2025-12-12T04:00:00Z&end_time=2025-12-12T05:00:00Z" | jq
 ```
-
-The system test verifies:
-- ✅ API health and availability
-- ✅ Data ingestion from CSV
-- ✅ Message flow through the queue
-- ✅ Telemetry storage and retrieval
-- ✅ Time-range filtering
-- ✅ Data ordering (newest first)
-- ✅ Data freshness
-- ✅ Swagger documentation
 
 ## Troubleshooting
 
