@@ -1,282 +1,685 @@
 # GPU Telemetry Pipeline
 
-An elastic, scalable telemetry pipeline for GPU monitoring in AI clusters, featuring a custom message queue implementation.
+A scalable, distributed telemetry pipeline for monitoring GPU metrics in Kubernetes clusters. The system streams GPU telemetry data from CSV files, processes it through a distributed message queue, persists it to MongoDB, and exposes REST APIs for querying historical telemetry data.
+
+---
+
+## Table of Contents
+
+- [System Overview](#system-overview)
+- [Architecture](#architecture)
+- [Design Considerations](#design-considerations)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+  - [Option 1: Local Deployment (Recommended)](#option-1-local-deployment-recommended)
+  - [Option 2: Existing Kubernetes Cluster](#option-2-existing-kubernetes-cluster)
+- [API Documentation](#api-documentation)
+- [User Workflow](#user-workflow)
+- [Project Structure](#project-structure)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [AI Assistance](#ai-assistance)
+
+---
+
+## System Overview
+
+The GPU Telemetry Pipeline is designed to handle high-volume GPU metrics collection and querying in containerized AI/ML workloads. It provides:
+
+- **Real-time streaming** of GPU metrics from CSV data sources
+- **Distributed message queue** with competing consumers pattern (Redis-backed)
+- **Persistent storage** in MongoDB for historical telemetry data
+- **REST API** for querying GPU information and telemetry history
+- **Horizontal scalability** - independently scale streamers, collectors, and API instances
+- **Kubernetes-native** - Helm charts for easy deployment and management
+
+---
 
 ## Architecture
 
-This system implements a distributed telemetry pipeline with the following components:
+### High-Level Component Diagram
 
-- **Telemetry Streamer**: Reads GPU metrics from CSV and streams them via the message queue
-- **Custom Message Queue**: In-memory queue implementation supporting multiple producers/consumers
-- **Telemetry Collector**: Consumes messages from the queue and persists data
-- **API Gateway**: REST API for querying GPU telemetry data
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Kubernetes Cluster                     │
+│                                                          │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐  │
+│  │  Streamer    │   │ Queue Service│   │  Collector   │  │
+│  │  Pods (N)    │──▶│ (Redis)      │◀──│  Pods (N)    │  │
+│  │              │   │              │   │              │  │
+│  │ • Read CSV   │   │ • Redis List │   │ • Consume    │  │
+│  │ • Parse      │   │ • ACK/NACK   │   │ • Process    │  │
+│  │ • Publish    │   │ • Competing  │   │ • Store      │  │
+│  └──────────────┘   │   Consumers  │   └──────┬───────┘  │
+│                     └──────────────┘          │          │
+│                                               │          │
+│                                               ▼          │
+│                                       ┌──────────────┐   │
+│                                       │   MongoDB    │   │
+│  ┌──────────────┐                     │              │   │
+│  │ API Gateway  │                     │ • Telemetry  │   │
+│  │  Pods (N)    │◀────────────────────│   Storage    │   │
+│  │              │                     │ • GPU Info   │   │
+│  │ • REST API   │                     └──────────────┘   │
+│  │ • Query      │                                        │
+│  │ • Swagger UI │                                        │
+│  └──────┬───────┘                                        │
+│         │                                                │
+└─────────┼────────────────────────────────────────────────┘
+          │
+          ▼
+    External Users
+ (http://localhost:8080)
+```
+
+### Component Responsibilities
+
+1. **Streamer Service**
+   - Reads GPU metrics from CSV files
+   - Parses DCGM metrics format
+   - Publishes messages to Redis queue
+   - Supports loop mode for continuous streaming
+   - Horizontally scalable (multiple replicas)
+
+2. **Queue Service (Redis)**
+   - Distributed message queue using Redis Lists
+   - Competing consumers pattern (each message to ONE collector)
+   - Message acknowledgment (ACK/NACK)
+   - Visibility timeout for message redelivery
+   - Dead letter queue for failed messages
+
+3. **Collector Service**
+   - Subscribes to telemetry messages from queue
+   - Processes messages in batches
+   - Stores telemetry data in MongoDB
+   - Worker pool for concurrent processing
+   - Horizontally scalable (multiple replicas)
+
+4. **API Gateway Service**
+   - REST API for querying GPU data
+   - Lists all GPUs with metadata
+   - Retrieves telemetry history with time filters
+   - Built-in Swagger UI for API exploration
+   - Health checks for Kubernetes probes
+   - Horizontally scalable (multiple replicas)
+
+5. **MongoDB**
+   - Persistent storage for telemetry data
+   - Collections: `gpus`, `telemetry_points`
+   - Indexes for efficient time-range queries
+   - Composite key: (GPU UUID + timestamp)
+
+---
+
+## Design Considerations
+
+### 1. **Scalability**
+- **Independent scaling**: Each component (streamer, collector, API) can scale independently
+- **Competing consumers**: Multiple collectors process messages in parallel without duplication
+- **Batch processing**: Collectors process telemetry in configurable batches for efficiency
+- **Connection pooling**: MongoDB connections pooled across API instances
+
+### 2. **Reliability**
+- **Message acknowledgment**: ACK/NACK ensures no message loss
+- **Visibility timeout**: Unprocessed messages automatically redelivered
+- **Dead letter queue**: Failed messages moved to DLQ after max retries
+- **Health checks**: Kubernetes liveness/readiness probes for all services
+
+### 3. **Extensibility**
+- **Repository pattern**: Storage layer abstracted for future extensions
+- **Interface-driven**: Components depend on abstractions, not implementations
+- **Configuration-driven**: Environment variables for all tunable parameters
+- **Helm charts**: Templated Kubernetes manifests for easy customization
+
+### 4. **Design Patterns**
+- **Repository Pattern**: Abstract storage layer (`GPURepository`, `TelemetryRepository`)
+- **Publisher-Subscriber**: Message queue architecture
+- **Factory Pattern**: Queue and storage instantiation
+- **Competing Consumers**: Load distribution across collector instances
+- **Adapter Pattern**: CSV to domain model conversion
+
+### 5. **SOLID Principles**
+- **Single Responsibility**: Each component has focused purpose
+- **Open/Closed**: Extensible via interfaces without modifying existing code
+- **Liskov Substitution**: Interface implementations are interchangeable
+- **Interface Segregation**: Small, focused interfaces (e.g., `MessageQueue`, `Repository`)
+- **Dependency Inversion**: Depend on abstractions, not concretions
+
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Docker** (v20.10+) - [Install Docker](https://docs.docker.com/get-docker/)
+- **kubectl** (v1.19+) - [Install kubectl](https://kubernetes.io/docs/tasks/tools/)
+- **Helm** (v3.x) - [Install Helm](https://helm.sh/docs/intro/install/)
+
+**For local deployment:**
+- **kind** (Kubernetes in Docker) - [Install kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
+
+**For development:**
+- **Go** (v1.21+) - [Install Go](https://go.dev/doc/install)
+- **Make** - Usually pre-installed on macOS/Linux
+
+---
+
+## Quick Start
+
+Choose one of the following deployment options:
+
+### Option 1: Local Deployment (Recommended)
+
+This option creates a local Kubernetes cluster using `kind`, builds Docker images, loads them into the cluster, and deploys all services.
+
+```bash
+# Run the automated local deployment
+make local-deploy
+```
+
+**What this does:**
+1. ✅ Checks prerequisites (Docker, kind, kubectl, Helm)
+2. ✅ Builds all Docker images
+3. ✅ Creates a kind cluster named `gpu-telemetry-cluster`
+4. ✅ Loads Docker images into the kind cluster
+5. ✅ Installs MongoDB, Redis, and all application services via Helm
+6. ✅ Waits for all pods to be ready
+7. ✅ Sets up port forwarding to `localhost:8080`
+
+**Expected output:**
+```
+🎉 Deployment Complete!
+
+Verification Commands:
+  1. Check pods status:
+     kubectl get pods -n default
+
+  2. Test API Gateway health:
+     curl http://localhost:8080/health
+
+  3. List all GPUs:
+     curl http://localhost:8080/api/v1/gpus | jq
+```
+
+**To clean up:**
+```bash
+make local-cleanup
+```
+
+---
+
+### Option 2: Existing Kubernetes Cluster
+
+Use this option if you already have a Kubernetes cluster (EKS, GKE, AKS, etc.) and want to deploy there.
+
+**Step 1: Connect to your cluster**
+```bash
+# Verify you're connected to the correct cluster
+kubectl cluster-info
+kubectl config current-context
+
+# If needed, switch context
+kubectl config use-context <your-context>
+```
+
+**Step 2: Push Docker images to a registry**
+
+For remote clusters, images must be in a container registry accessible by your cluster.
+
+```bash
+# Option A: Docker Hub
+make k8s-deploy REGISTRY=yourusername TAG=v1.0.0
+
+# Option B: Google Container Registry
+make k8s-deploy REGISTRY=gcr.io/your-project-id TAG=v1.0.0
+
+# Option C: AWS Elastic Container Registry
+make k8s-deploy REGISTRY=123456789.dkr.ecr.us-east-1.amazonaws.com TAG=v1.0.0
+```
+
+**Step 3: Deploy to Kubernetes**
+```bash
+make k8s-deploy REGISTRY=<your-registry> TAG=<tag>
+```
+
+**What this does:**
+1. ✅ Validates Docker is running
+2. ✅ Checks Kubernetes cluster connection
+3. ✅ Detects if using kind (recommends `local-deploy` instead)
+4. ✅ Builds Docker images
+5. ✅ Pushes images to your registry
+6. ✅ Deploys MongoDB, Redis, and all services via Helm
+7. ✅ Sets up port forwarding to `localhost:8080`
+
+---
+
+## API Documentation
+
+### Generate Swagger Documentation
+
+The project includes OpenAPI/Swagger specifications for the REST API.
+
+```bash
+# Generate Swagger docs
+make openapi
+```
+
+**Generated files:**
+- `docs/swagger/swagger.json` - OpenAPI 2.0 in JSON
+- `docs/swagger/swagger.yaml` - OpenAPI 2.0 in YAML
+- `docs/swagger/docs.go` - Go documentation
+
+### Access Swagger UI
+
+After deployment, access the interactive Swagger UI:
+
+```bash
+# If port-forwarding is not active, start it:
+kubectl port-forward service/api-gateway 8080:8080
+
+# Open in browser:
+# http://localhost:8080/swagger/index.html
+```
+
+### API Endpoints
+
+#### 1. Health Check
+```bash
+GET /health
+
+curl http://localhost:8080/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-12-12T10:30:00Z"
+}
+```
+
+#### 2. List All GPUs
+```bash
+GET /api/v1/gpus
+
+curl http://localhost:8080/api/v1/gpus | jq
+```
+
+**Response:**
+```json
+{
+  "gpus": [
+    {
+      "uuid": "GPU-5fd4f087-86f3-7a43-b711-4771313afc50",
+      "device_id": "nvidia0",
+      "gpu_index": "0",
+      "model_name": "NVIDIA H100 80GB HBM3",
+      "hostname": "mtv5-dgx1-hgpu-031",
+      "container": "gpu-workload",
+      "pod": "training-pod-1",
+      "namespace": "ml-team"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### 3. Get GPU Telemetry
+```bash
+GET /api/v1/gpus/{uuid}/telemetry?start_time={RFC3339}&end_time={RFC3339}
+
+# Example: Get telemetry for specific GPU
+GPU_UUID="GPU-5fd4f087-86f3-7a43-b711-4771313afc50"
+curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry" | jq
+
+# Example: With time filters
+curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry?start_time=2025-12-12T04:00:00Z&end_time=2025-12-12T05:00:00Z" | jq
+```
+
+**Response:**
+```json
+{
+  "gpu_uuid": "GPU-5fd4f087-86f3-7a43-b711-4771313afc50",
+  "telemetry": [
+    {
+      "metric_name": "DCGM_FI_DEV_GPU_TEMP",
+      "value": 65.0,
+      "timestamp": "2025-12-12T04:15:32Z"
+    },
+    {
+      "metric_name": "DCGM_FI_DEV_POWER_USAGE",
+      "value": 320.5,
+      "timestamp": "2025-12-12T04:15:32Z"
+    }
+  ],
+  "count": 2
+}
+```
+
+---
+
+## User Workflow
+
+### Step-by-Step Guide for New Users
+
+**1. Deploy the system**
+
+```bash
+# For local testing with kind
+make local-deploy
+
+# Wait for deployment to complete (~2-3 minutes)
+```
+
+**2. Verify deployment**
+
+```bash
+# Check all pods are running
+kubectl get pods
+
+# Expected output:
+# NAME                          READY   STATUS    RESTARTS   AGE
+# api-gateway-xxx               1/1     Running   0          2m
+# collector-xxx                 1/1     Running   0          2m
+# mongodb-0                     1/1     Running   0          2m
+# queue-service-0               1/1     Running   0          2m
+# redis-xxx                     1/1     Running   0          2m
+# streamer-xxx                  1/1     Running   0          2m
+```
+
+**3. Test API health**
+
+```bash
+curl http://localhost:8080/health
+
+# Expected: {"status":"healthy","timestamp":"..."}
+```
+
+**4. Explore Swagger UI**
+
+Open your browser to: `http://localhost:8080/swagger/index.html`
+
+- Try the `/api/v1/gpus` endpoint
+- Click "Try it out" → "Execute"
+- View the response with all GPU information
+
+**5. Query GPU telemetry**
+
+```bash
+# List all GPUs and get a UUID
+curl http://localhost:8080/api/v1/gpus | jq '.gpus[0].uuid'
+
+# Get telemetry for that GPU
+GPU_UUID="<paste-uuid-here>"
+curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry" | jq
+
+# Filter by time range
+curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry?start_time=2025-12-12T00:00:00Z&end_time=2025-12-12T23:59:59Z" | jq
+```
+
+**6. Monitor logs** (optional)
+
+```bash
+# View streamer logs
+kubectl logs -l app=streamer --tail=50 -f
+
+# View collector logs
+kubectl logs -l app=collector --tail=50 -f
+
+# View API logs
+kubectl logs -l app=api-gateway --tail=50 -f
+```
+
+**7. Clean up**
+
+```bash
+# When done, clean up local deployment
+make local-cleanup
+```
+
+---
 
 ## Project Structure
 
 ```
 .
-├── cmd/                    # Application entry points
-│   ├── streamer/          # Telemetry Streamer service
-│   ├── collector/         # Telemetry Collector service
-│   └── api-gateway/       # API Gateway service
-├── internal/              # Private application code
-│   ├── domain/           # Domain models (GPU, TelemetryPoint)
-│   ├── mq/               # Custom message queue implementation
-│   ├── storage/          # Storage layer (Repository pattern)
-│   ├── telemetry/        # Telemetry business logic
-│   ├── api/              # API handlers, middleware, DTOs
-│   └── config/           # Configuration management
-├── pkg/                   # Public reusable libraries
-├── deployments/           # Deployment configurations
-├── api/                   # OpenAPI specifications
-└── docs/                  # Documentation
+├── cmd/                          # Application entry points
+│   ├── api-gateway/              # REST API service
+│   ├── collector/                # Telemetry collector service
+│   ├── queueservice/             # Queue service (if using custom queue)
+│   └── streamer/                 # CSV streamer service
+├── internal/                     # Private application code
+│   ├── api/                      # API handlers, middleware, DTOs
+│   │   ├── handlers/             # HTTP request handlers
+│   │   ├── middleware/           # Request logging, CORS, etc.
+│   │   └── router.go             # Route definitions
+│   ├── collector/                # Collector business logic
+│   ├── config/                   # Configuration management
+│   ├── domain/                   # Domain models (GPU, TelemetryPoint)
+│   ├── mq/                       # Message queue implementations
+│   │   ├── http_queue_client.go  # HTTP-based queue client
+│   │   ├── inmemory_queue.go     # In-memory queue
+│   │   └── redis_queue.go        # Redis queue implementation
+│   ├── parser/                   # CSV parsing logic
+│   ├── queueservice/             # Custom queue service (optional)
+│   ├── storage/                  # Storage layer (Repository pattern)
+│   │   ├── inmemory/             # In-memory repository
+│   │   └── mongodb/              # MongoDB repository
+│   ├── streamer/                 # Streamer business logic
+│   └── telemetry/                # Telemetry domain logic
+├── charts/                       # Helm charts
+│   ├── api-gateway/              # API Gateway Helm chart
+│   ├── collector/                # Collector Helm chart
+│   ├── mongodb/                  # MongoDB Helm chart
+│   ├── queue-service/            # Queue Service Helm chart
+│   ├── redis/                    # Redis Helm chart
+│   └── streamer/                 # Streamer Helm chart
+├── data/                         # Sample CSV data
+│   └── dcgm_metrics_20250718_134233.csv
+├── docs/                         # Documentation
+│   └── swagger/                  # Generated Swagger/OpenAPI specs
+├── test/                         # Integration tests
+├── Makefile                      # Build and deployment automation
+├── README.md                     # This file
+└── README_AI_PROMPTS.md          # AI assistance documentation
 ```
 
-## Getting Started
+---
 
-### Prerequisites
+## Configuration
 
-- Go 1.21 or later
-- Make
+All services are configured via environment variables. Default values are provided in Helm chart `values.yaml` files.
 
-### Build
+### Streamer Configuration
 
-```bash
-# Build all services
-make build
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CSV_PATH` | `/data/dcgm_metrics.csv` | Path to CSV file |
+| `QUEUE_SERVICE_URL` | `http://queue-service:8080` | Redis/Queue service URL |
+| `STREAM_INTERVAL` | `100ms` | Delay between streaming rows |
+| `LOOP_MODE` | `true` | Loop CSV file continuously |
+| `BATCH_SIZE` | `100` | Number of rows per batch |
 
-# Build individual services
-go build -o bin/streamer ./cmd/streamer
-go build -o bin/collector ./cmd/collector
-go build -o bin/api-gateway ./cmd/api-gateway
-```
+### Collector Configuration
 
-### Run Services
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QUEUE_SERVICE_URL` | `http://queue-service:8080` | Redis/Queue service URL |
+| `MONGODB_URI` | `mongodb://mongodb:27017` | MongoDB connection string |
+| `MONGODB_DATABASE` | `gpu_telemetry` | Database name |
+| `BATCH_SIZE` | `1` | Telemetry processing batch size |
+| `MAX_CONCURRENT_HANDLERS` | `10` | Worker pool size |
 
-```bash
-# Run Telemetry Streamer
-make run-streamer
+### API Gateway Configuration
 
-# Run Telemetry Collector
-make run-collector
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_PORT` | `8080` | HTTP server port |
+| `MONGODB_URI` | `mongodb://mongodb:27017` | MongoDB connection string |
+| `MONGODB_DATABASE` | `gpu_telemetry` | Database name |
+| `LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 
-# Run API Gateway
-make run-api
-```
+### Queue Service (Redis) Configuration
 
-### Testing
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_ADDR` | `redis:6379` | Redis server address |
+| `REDIS_PASSWORD` | `` | Redis password (if any) |
+| `REDIS_DB` | `0` | Redis database number |
+
+---
+
+## Testing
+
+### Unit Tests
 
 ```bash
 # Run all tests
 make test
 
-# Run tests with coverage
+# Run tests with coverage report
 make cover
 ```
 
-### Generate OpenAPI Specification
+Coverage report is generated at `coverage.html`. Open it in a browser to see detailed coverage.
+
+### Integration Tests
 
 ```bash
-make openapi
+# Run integration test script
+./test-integration.sh
 ```
 
-## API Endpoints
+### Manual API Testing
 
-- `GET /api/v1/gpus` - List all GPUs with telemetry data
-- `GET /api/v1/gpus/{id}/telemetry` - Get telemetry for a specific GPU
-  - Query parameters: `start_time`, `end_time` (RFC3339 format)
-- `GET /health` - Health check
-- `GET /metrics` - Service metrics
+See [User Workflow](#user-workflow) section for step-by-step API testing examples.
 
-## Configuration
-
-Configuration can be provided via environment variables or command-line flags:
-
-- `INSTANCE_ID` - Instance identifier
-- `LOG_LEVEL` - Log level (debug, info, warn, error)
-- `CSV_FILE` - Path to CSV file (Streamer)
-- `STREAM_INTERVAL` - Interval between streaming rows in ms (Streamer)
-- `API_PORT` - API Gateway port
-- `QUEUE_BUFFER_SIZE` - Message queue buffer size
-- `STORAGE_TYPE` - Storage type (inmemory, mongodb)
-
-## Design Patterns
-
-This project implements several design patterns:
-
-- **Repository Pattern**: Abstract storage layer for extensibility
-- **Factory Pattern**: Queue and storage creation
-- **Strategy Pattern**: Pluggable parsers and serializers
-- **Publisher-Subscriber**: Message queue architecture
-- **Adapter Pattern**: CSV to domain model conversion
-
-## SOLID Principles
-
-The codebase adheres to SOLID principles:
-
-- **Single Responsibility**: Each component has a focused purpose
-- **Open/Closed**: Extensible via interfaces
-- **Liskov Substitution**: Implementations are interchangeable
-- **Interface Segregation**: Small, focused interfaces
-- **Dependency Inversion**: Depend on abstractions
-
-## Docker Deployment
-
-### Build Docker Images
-
-```bash
-# Build all images
-make docker-build
-
-# Or build individually
-make docker-streamer
-make docker-collector
-make docker-api
-make docker-queue
-```
-
-### Run with Docker
-
-```bash
-# Run individual services
-docker run -d --name streamer \
-  -v $(pwd)/data/dcgm_metrics_20250718_134233.csv:/app/data/metrics.csv \
-  -e QUEUE_URL=http://queue-service:8081 \
-  gpu-telemetry-streamer:latest
-
-docker run -d --name collector \
-  -e QUEUE_URL=http://queue-service:8081 \
-  gpu-telemetry-collector:latest
-
-docker run -d --name api-gateway -p 8080:8080 \
-  gpu-telemetry-api:latest
-
-docker run -d --name queue-service -p 8081:8081 \
-  gpu-telemetry-queue:latest
-```
-
-## Kubernetes Deployment
-
-### Prerequisites
-
-- Docker
-- kind (Kubernetes in Docker)
-- kubectl
-- Helm v3.x
-
-### Quick Start with kind
-
-```bash
-# 1. Create kind cluster
-kind create cluster --name gpu-telemetry
-
-# 2. Build and load Docker images
-make docker-build
-kind load docker-image gpu-telemetry-streamer:latest --name gpu-telemetry
-kind load docker-image gpu-telemetry-collector:latest --name gpu-telemetry
-kind load docker-image gpu-telemetry-api:latest --name gpu-telemetry
-kind load docker-image gpu-telemetry-queue:latest --name gpu-telemetry
-
-# 3. Create CSV ConfigMap
-kubectl create configmap gpu-telemetry-csv-data \
-  --from-file=metrics.csv=data/dcgm_metrics_20250718_134233.csv
-
-# 4. Install Helm chart
-helm install gpu-telemetry ./charts/gpu-telemetry
-
-# 5. Wait for pods to be ready
-kubectl get pods -w
-
-# 6. Access the API
-kubectl port-forward service/gpu-telemetry-api-gateway 8080:8080
-
-# 7. Test the API
-curl http://localhost:8080/api/v1/gpus
-```
-
-For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
-
-### Scaling
-
-```bash
-# Scale streamers and collectors
-helm upgrade gpu-telemetry ./charts/gpu-telemetry \
-  --set streamer.replicaCount=5 \
-  --set collector.replicaCount=5
-
-# Or use kubectl
-kubectl scale deployment gpu-telemetry-streamer --replicas=5
-kubectl scale deployment gpu-telemetry-collector --replicas=5
-```
-
-## End-to-End Testing
-
-### Manual Testing
-
-Follow the step-by-step guide in [E2E_TEST.md](E2E_TEST.md) to manually test the entire pipeline.
-
-### API Testing
-
-Test the APIs manually using curl:
-
-```bash
-# Setup port forwarding
-kubectl port-forward service/api-gateway 8080:8080 &
-
-# Test 1: Health check
-curl http://localhost:8080/health
-
-# Test 2: List all GPUs
-curl http://localhost:8080/api/v1/gpus | jq
-
-# Test 3: Get telemetry for a specific GPU
-GPU_UUID=$(curl -s http://localhost:8080/api/v1/gpus | jq -r '.gpus[0].uuid')
-curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry" | jq
-
-# Test 4: Get telemetry with time filter
-curl "http://localhost:8080/api/v1/gpus/${GPU_UUID}/telemetry?start_time=2025-12-12T04:00:00Z&end_time=2025-12-12T05:00:00Z" | jq
-```
+---
 
 ## Troubleshooting
 
-### Common Issues
+### Pods Not Starting
 
-**Pods not starting:**
+**Check pod status:**
 ```bash
+kubectl get pods
 kubectl describe pod <pod-name>
 kubectl logs <pod-name>
 ```
 
-**Images not found in kind:**
+**Common causes:**
+- Image pull errors: Images not loaded into kind cluster
+  ```bash
+  make local-deploy  # Re-run to reload images
+  ```
+- Resource constraints: Insufficient CPU/memory
+  ```bash
+  kubectl top nodes
+  ```
+
+### API Not Responding
+
+**Check API Gateway logs:**
 ```bash
-kind load docker-image <image-name>:latest --name gpu-telemetry
+kubectl logs -l app=api-gateway --tail=100
 ```
 
-**CSV data missing:**
+**Verify port forwarding:**
 ```bash
-kubectl get configmap gpu-telemetry-csv-data
-kubectl describe configmap gpu-telemetry-csv-data
+# Kill existing port-forward
+pkill -f "port-forward.*api-gateway"
+
+# Restart port forwarding
+kubectl port-forward service/api-gateway 8080:8080
 ```
 
-**API not responding:**
+**Test health endpoint:**
 ```bash
-kubectl logs -l app.kubernetes.io/component=api-gateway
-kubectl get svc
-kubectl get endpoints
+curl http://localhost:8080/health
 ```
 
-For more troubleshooting tips, see [DEPLOYMENT.md](DEPLOYMENT.md).
+### MongoDB Connection Issues
 
-## Documentation
+**Check MongoDB pod:**
+```bash
+kubectl get pods -l app=mongodb
+kubectl logs mongodb-0
+```
 
-- [E2E Testing Guide](E2E_TEST.md) - Complete end-to-end testing instructions
-- [Deployment Guide](DEPLOYMENT.md) - Detailed Kubernetes deployment guide
-- [AI Prompts Log](README_AI_PROMPTS.md) - Development workflow and prompts
+**Verify MongoDB service:**
+```bash
+kubectl get svc mongodb
+```
+
+**Check MongoDB resource limits:**
+If MongoDB pod is OOMKilled, increase memory limits in `charts/mongodb/values.yaml`:
+```yaml
+resources:
+  limits:
+    memory: 2Gi  # Increase if needed
+```
+
+### No Telemetry Data
+
+**Check streamer logs:**
+```bash
+kubectl logs -l app=streamer --tail=100
+```
+
+**Check collector logs:**
+```bash
+kubectl logs -l app=collector --tail=100
+```
+
+**Verify queue service:**
+```bash
+kubectl logs -l app=queue-service --tail=100
+# or for Redis
+kubectl logs -l app=redis --tail=100
+```
+
+**Check if CSV data is mounted:**
+```bash
+kubectl exec -it <streamer-pod> -- ls -la /data/
+```
+
+### Images Not Found (ImagePullBackOff)
+
+**For kind clusters:**
+```bash
+# Rebuild and reload images
+make docker-build
+kind load docker-image gpu-telemetry-streamer:latest --name gpu-telemetry-cluster
+kind load docker-image gpu-telemetry-collector:latest --name gpu-telemetry-cluster
+kind load docker-image gpu-telemetry-api:latest --name gpu-telemetry-cluster
+kind load docker-image gpu-telemetry-queueservice:latest --name gpu-telemetry-cluster
+```
+
+**For remote clusters:**
+Ensure images are pushed to a registry accessible by your cluster:
+```bash
+make k8s-deploy REGISTRY=yourusername TAG=v1.0.0
+```
+
+---
+
+## AI Assistance
+
+This project was developed with extensive AI assistance from Claude (Anthropic). For a detailed log of prompts, development workflow, and how AI was used throughout the project, please refer to:
+
+**[docs/README_AI_PROMPTS.md](docs/README_AI_PROMPTS.md)**
+
+The AI assistance covered:
+- System architecture design
+- Implementation of all microservices
+- Kubernetes/Helm chart creation
+- Test suite development
+- Documentation generation
+- Troubleshooting and debugging
+
+---
 
 ## License
 
 MIT
-
-## AI Assistance
-
-This project was developed with AI assistance. See `README_AI_PROMPTS.md` for the detailed prompt log and development workflow.

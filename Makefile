@@ -103,7 +103,7 @@ clean:
 	@echo "Clean complete"
 
 # Local deployment with kind and Helm
-local-deploy: CLUSTER_NAME ?= gpu-telemetry
+local-deploy: CLUSTER_NAME ?= gpu-telemetry-cluster
 local-deploy: NAMESPACE ?= default
 local-deploy: CSV_FILE ?= data/dcgm_metrics_20250718_134233.csv
 local-deploy:
@@ -208,12 +208,181 @@ local-deploy:
 	@echo ""
 
 # Clean up local deployment
-local-cleanup: CLUSTER_NAME ?= gpu-telemetry
+local-cleanup: CLUSTER_NAME ?= gpu-telemetry-cluster
 local-cleanup:
 	@echo "Cleaning up local deployment..."
 	@pkill -f "port-forward.*api-gateway" || true
 	@kind delete cluster --name $(CLUSTER_NAME) || true
 	@echo "✅ Cleanup complete"
+
+# Deploy to existing Kubernetes cluster
+k8s-deploy: NAMESPACE ?= default
+k8s-deploy:
+	@echo "=========================================="
+	@echo "GPU Telemetry Pipeline - K8s Deployment"
+	@echo "=========================================="
+	@echo ""
+	@echo "Checking prerequisites..."
+	@echo ""
+	@echo "1. Checking Docker..."
+	@which docker > /dev/null || (echo "   ❌ Docker CLI not found. Please install Docker." && exit 1)
+	@if ! docker info > /dev/null 2>&1; then \
+		echo "   ❌ Docker is not running. Please start Docker Desktop or Docker daemon."; \
+		exit 1; \
+	fi
+	@echo "   ✅ Docker is running"
+	@echo ""
+	@echo "2. Checking kubectl..."
+	@which kubectl > /dev/null || (echo "   ❌ kubectl not found. Please install: brew install kubectl" && exit 1)
+	@echo "   ✅ kubectl is installed"
+	@echo ""
+	@echo "3. Checking Helm..."
+	@which helm > /dev/null || (echo "   ❌ Helm not found. Please install: brew install helm" && exit 1)
+	@echo "   ✅ Helm is installed"
+	@echo ""
+	@echo "4. Checking Kubernetes cluster connection..."
+	@if ! kubectl cluster-info > /dev/null 2>&1; then \
+		echo "   ❌ Not connected to a Kubernetes cluster."; \
+		echo ""; \
+		echo "   Please connect to your Kubernetes cluster using one of:"; \
+		echo "     • kubectl config use-context <context-name>"; \
+		echo "     • export KUBECONFIG=/path/to/kubeconfig"; \
+		echo "     • aws eks update-kubeconfig --name <cluster-name>"; \
+		echo "     • gcloud container clusters get-credentials <cluster-name>"; \
+		echo ""; \
+		echo "   To view available contexts: kubectl config get-contexts"; \
+		exit 1; \
+	fi
+	@echo "   ✅ Connected to Kubernetes cluster:"
+	@kubectl cluster-info | head -1 | sed 's/^/      /'
+	@echo ""
+	@echo "=========================================="
+	@echo "5. Checking cluster type..."
+	@if kubectl config current-context 2>/dev/null | grep -q "^kind-"; then \
+		echo "   ⚠️  Detected kind cluster!"; \
+		echo ""; \
+		echo "   For kind clusters, use 'make local-deploy' instead."; \
+		echo "   It will automatically:"; \
+		echo "     • Create/recreate the kind cluster"; \
+		echo "     • Load Docker images into the cluster"; \
+		echo "     • Deploy all services"; \
+		echo ""; \
+		echo "   Run: make local-deploy"; \
+		echo ""; \
+		read -p "   Continue with k8s-deploy anyway? (y/N) " -n 1 -r; \
+		echo ""; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+		echo "   ⚠️  WARNING: You'll need to manually load images into kind:"; \
+		echo "      kind load docker-image gpu-telemetry-streamer:latest --name <cluster-name>"; \
+		echo "      kind load docker-image gpu-telemetry-collector:latest --name <cluster-name>"; \
+		echo "      kind load docker-image gpu-telemetry-api:latest --name <cluster-name>"; \
+		echo "      kind load docker-image gpu-telemetry-queueservice:latest --name <cluster-name>"; \
+	else \
+		echo "   ✅ Non-kind cluster detected"; \
+	fi
+	@echo ""
+	@echo "=========================================="
+	@echo "All prerequisites validated!"
+	@echo "=========================================="
+	@echo ""
+	@echo "[1/6] Building Docker images..."
+	@$(MAKE) docker-build TAG=latest
+	@echo ""
+	@echo "[2/6] Pushing Docker images to registry..."
+	@if [ -z "$(REGISTRY)" ]; then \
+		echo "⚠️  WARNING: REGISTRY is not set!"; \
+		echo ""; \
+		echo "For non-local clusters, you need to push images to a registry."; \
+		echo ""; \
+		echo "Options:"; \
+		echo "  1. For local/kind clusters: Images are already loaded locally"; \
+		echo "  2. For remote clusters: Set REGISTRY and push images:"; \
+		echo "     make k8s-deploy REGISTRY=<your-registry> TAG=<tag>"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  • Docker Hub:  make k8s-deploy REGISTRY=yourusername TAG=v1.0.0"; \
+		echo "  • GCR:         make k8s-deploy REGISTRY=gcr.io/project-id TAG=v1.0.0"; \
+		echo "  • ECR:         make k8s-deploy REGISTRY=123456789.dkr.ecr.region.amazonaws.com TAG=v1.0.0"; \
+		echo ""; \
+		read -p "Continue without pushing to registry? (y/N) " -n 1 -r; \
+		echo ""; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	else \
+		echo "Pushing images to $(REGISTRY)..."; \
+		docker push $(IMAGE_PREFIX)gpu-telemetry-streamer:$(TAG) && \
+		docker push $(IMAGE_PREFIX)gpu-telemetry-collector:$(TAG) && \
+		docker push $(IMAGE_PREFIX)gpu-telemetry-api:$(TAG) && \
+		docker push $(IMAGE_PREFIX)gpu-telemetry-queueservice:$(TAG) && \
+		echo "✅ All images pushed successfully"; \
+	fi
+	@echo ""
+	@echo "[3/6] Installing Helm charts..."
+	@echo "  Installing MongoDB..."
+	@helm upgrade --install mongodb ./charts/mongodb \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "  Installing Redis..."
+	@helm upgrade --install redis ./charts/redis \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "  Installing Queue Service..."
+	@helm upgrade --install queue-service ./charts/queue-service \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "  Installing Streamer..."
+	@helm upgrade --install streamer ./charts/streamer \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "  Installing Collector..."
+	@helm upgrade --install collector ./charts/collector \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "  Installing API Gateway..."
+	@helm upgrade --install api-gateway ./charts/api-gateway \
+		--namespace $(NAMESPACE) \
+		--wait --timeout 5m
+	@echo "✅ All Helm charts installed successfully"
+	@echo ""
+	@echo "[4/6] Waiting for all pods to be ready (this may take a minute)..."
+	@kubectl wait --for=condition=ready pod --all \
+		--namespace $(NAMESPACE) --timeout=300s || true
+	@echo ""
+	@kubectl get pods -n $(NAMESPACE)
+	@echo ""
+	@echo "[5/6] Setting up port forwarding..."
+	@echo "Starting port-forward in background (API Gateway: 8080)..."
+	@pkill -f "port-forward.*api-gateway" || true
+	@nohup kubectl port-forward service/api-gateway 8080:8080 -n $(NAMESPACE) > /tmp/port-forward.log 2>&1 & 
+	@sleep 3
+	@echo "✅ Port forwarding active on localhost:8080"
+	@echo ""
+	@echo "=========================================="
+	@echo "🎉 Deployment Complete!"
+	@echo "=========================================="
+	@echo ""
+	@echo "Verification Commands:"
+	@echo "  1. Check pods status:"
+	@echo "     kubectl get pods -n $(NAMESPACE)"
+	@echo ""
+	@echo "  2. Test API Gateway health:"
+	@echo "     curl http://localhost:8080/health"
+	@echo ""
+	@echo "  3. List all GPUs:"
+	@echo "     curl http://localhost:8080/api/v1/gpus | jq"
+	@echo ""
+	@echo "  4. Get GPU telemetry (replace <GPU_UUID> with actual UUID):"
+	@echo "     curl http://localhost:8080/api/v1/gpus/<GPU_UUID>/telemetry | jq"
+	@echo ""
+	@echo "  5. View logs:"
+	@echo "     kubectl logs -l app=streamer -n $(NAMESPACE) --tail=50 -f"
+	@echo "     kubectl logs -l app=collector -n $(NAMESPACE) --tail=50 -f"
+	@echo ""
+	@echo "To stop port-forwarding: pkill -f 'port-forward.*api-gateway'"
+	@echo ""
 
 # Show help
 help:
@@ -229,7 +398,7 @@ help:
 	@echo "  docker-streamer - Build Streamer Docker image (REGISTRY= TAG=latest)"
 	@echo "  docker-collector- Build Collector Docker image (REGISTRY= TAG=latest)"
 	@echo "  docker-api      - Build API Gateway Docker image (REGISTRY= TAG=latest)"
-	@echo "  local-deploy    - Deploy entire stack to local kind cluster (CLUSTER_NAME=gpu-telemetry)"
+	@echo "  local-deploy    - Deploy entire stack to local kind cluster (CLUSTER_NAME=gpu-telemetry-cluster)"
 	@echo "  local-cleanup   - Clean up local kind cluster and port-forwards"
 	@echo "  clean           - Remove build artifacts and coverage reports"
 	@echo "  help            - Show this help message"

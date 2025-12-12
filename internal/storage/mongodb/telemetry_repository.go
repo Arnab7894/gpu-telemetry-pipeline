@@ -101,8 +101,8 @@ func (r *TelemetryRepository) GetByGPU(gpuUUID string, filter storage.TimeFilter
 		queryFilter["timestamp"] = timeFilter
 	}
 
-	// Sort by timestamp ascending
-	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: 1}})
+	// Sort by timestamp descending (newest first)
+	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 
 	// Apply limit if specified
 	if filter.Limit != nil {

@@ -496,6 +496,56 @@ Please:
 - Clearly mark new files vs modified files.
 - Provide short explanations where design choices are non-trivial.
 
+## Prompt 17 - Readme refinement
+
+### **Refined Prompt**
+
+You need to update the main project README located at:
+`/Users/arnabghosh/Work/Cisco_assignment/gpu-metrics-streamer/README.md`
+
+Please rewrite it into a **clean, comprehensive, user-friendly document** suitable for someone who has **no prior knowledge** of the system.
+
+### **Your tasks:**
+
+1. **Rewrite the README completely**, ensuring it includes:
+
+   * A clear explanation of the **system architecture** and the key **design considerations**.
+   * Step-by-step **build and packaging instructions**.
+   * Both deployment options:
+
+     * **Local deployment (`local-deploy`)**
+     * **Kubernetes deployment (`k8s-deploy`)**
+   * Full **installation workflow** for each deployment method.
+   * A simple **user workflow**, showing how someone can:
+
+     * Bring up the cluster
+     * Generate the Swagger API spec (using the existing Makefile target)
+     * Locate and open the generated Swagger documentation
+     * Call the APIs
+
+2. Add a section explaining how AI assistance was used, but simply point users to:
+   `README_AI_PROMPTS.md`
+   Do **not** duplicate its content.
+
+3. **Remove unnecessary files**:
+
+   * Delete all README files under:
+     `/Users/arnabghosh/Work/Cisco_assignment/gpu-metrics-streamer/docs`
+   * Delete any other README files in the project except:
+
+     * `README.md` (main documentation you are rewriting)
+     * `README_AI_PROMPTS.md`
+
+   Before removing them, you may read them if needed for context.
+
+4. Ensure the final `README.md` is:
+
+   * Clean
+   * Well-structured
+   * Easy to follow
+   * Free from redundant or previously added unnecessary content
+
+
 ---
 
 ✅ **End of Prompt Log**
