@@ -46,7 +46,7 @@ func TestStreamer_AtomicCounters(t *testing.T) {
 	err := queue.Start(context.Background())
 	assert.NoError(t, err)
 
-	streamer := NewStreamer(cfg, queue, nil, nil, nil)
+	streamer := NewStreamer(cfg, queue, nil, nil)
 	assert.NotNil(t, streamer)
 
 	// Test atomic counters

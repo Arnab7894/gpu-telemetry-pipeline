@@ -11,7 +11,7 @@ import (
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/api"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/config"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
-	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/inmemory"
+
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/mongodb"
 
 	_ "github.com/arnabghosh/gpu-metrics-streamer/docs/swagger" // Import generated swagger docs
@@ -81,14 +81,8 @@ func main() {
 			slog.String("telemetry_collection", "metrics"),
 		)
 	} else {
-		// Use in-memory storage
-		gpuRepo = inmemory.NewGPURepository()
-		telemetryRepo = inmemory.NewTelemetryRepository()
-
-		slog.Info("Initialized storage repositories",
-			slog.String("gpu_repo", "in-memory"),
-			slog.String("telemetry_repo", "in-memory"),
-		)
+		slog.Error("MongoDB URI not configured. Set MONGODB_URI environment variable.")
+		os.Exit(1)
 	}
 
 	// Create API router with handlers wired to repositories

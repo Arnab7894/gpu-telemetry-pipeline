@@ -9,7 +9,6 @@ import (
 	"syscall"
 
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/mq"
-	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/inmemory"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/streamer"
 )
 
@@ -76,11 +75,8 @@ func main() {
 		"instance_id", config.InstanceID,
 	)
 
-	// Initialize GPU repository
-	gpuRepo := inmemory.NewGPURepository()
-
 	// Create streamer
-	telemetryStreamer := streamer.NewStreamer(config, queue, gpuRepo, batchLock, logger)
+	telemetryStreamer := streamer.NewStreamer(config, queue, batchLock, logger)
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)

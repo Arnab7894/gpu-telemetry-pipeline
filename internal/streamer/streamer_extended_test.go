@@ -25,9 +25,8 @@ func TestNewStreamer_WithAllParams(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	assert.NotNil(t, streamer)
 	assert.Equal(t, config, streamer.config)
@@ -44,9 +43,8 @@ func TestNewStreamer_NilLogger(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, nil)
+	streamer := NewStreamer(config, mockQueue, nil, nil)
 
 	assert.NotNil(t, streamer)
 	assert.NotNil(t, streamer.logger) // Should have default logger
@@ -71,9 +69,8 @@ func TestStreamer_Start_NonLoopMode(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -104,9 +101,8 @@ func TestStreamer_Start_LoopMode(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -128,9 +124,8 @@ func TestStreamer_Start_FileNotFound(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx := context.Background()
 	err := streamer.Start(ctx)
@@ -154,9 +149,8 @@ func TestStreamer_Start_ContextCancelled(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -183,9 +177,8 @@ func TestStreamer_streamFile_Success(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx := context.Background()
 	err := streamer.streamFile(ctx)
@@ -212,9 +205,8 @@ another,invalid,line
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx := context.Background()
 	err := streamer.streamFile(ctx)
@@ -240,9 +232,8 @@ func TestStreamer_streamFile_EmptyFile(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx := context.Background()
 	err := streamer.streamFile(ctx)
@@ -268,9 +259,8 @@ func TestStreamer_PublishError(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{shouldFail: true}
-	mockGPURepo := &MockGPURepository{}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx := context.Background()
 	err := streamer.streamFile(ctx)
@@ -285,7 +275,6 @@ func TestStreamer_PublishError(t *testing.T) {
 
 func TestStreamer_Stats(t *testing.T) {
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
 	config := &Config{
 		CSVPath:        "test.csv",
@@ -293,7 +282,7 @@ func TestStreamer_Stats(t *testing.T) {
 		InstanceID:     "test-instance",
 	}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	// Initially zero
 	stats := streamer.Stats()
@@ -323,9 +312,8 @@ func TestStreamer_GPURepositoryError(t *testing.T) {
 	}
 
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{shouldFail: true}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	ctx := context.Background()
 	err := streamer.streamFile(ctx)
@@ -338,7 +326,6 @@ func TestStreamer_GPURepositoryError(t *testing.T) {
 
 func TestStreamer_ConcurrentStats(t *testing.T) {
 	mockQueue := &MockMessageQueue{}
-	mockGPURepo := &MockGPURepository{}
 
 	config := &Config{
 		CSVPath:        "test.csv",
@@ -346,7 +333,7 @@ func TestStreamer_ConcurrentStats(t *testing.T) {
 		InstanceID:     "test-instance",
 	}
 
-	streamer := NewStreamer(config, mockQueue, mockGPURepo, nil, slog.Default())
+	streamer := NewStreamer(config, mockQueue, nil, slog.Default())
 
 	// Increment counters concurrently
 	done := make(chan bool)

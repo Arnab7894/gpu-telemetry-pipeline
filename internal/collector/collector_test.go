@@ -9,7 +9,6 @@ import (
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/domain"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/mq"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
-	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,8 +25,9 @@ func TestCollector_HandleMessage_ValidTelemetry(t *testing.T) {
 		BufferSize: 100,
 		MaxWorkers: 10,
 	})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+
+	telemetryRepo := &MockTelemetryRepository{}
+	gpuRepo := &MockGPURepository{}
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 
@@ -82,8 +82,8 @@ func TestCollector_HandleMessage_MalformedJSON(t *testing.T) {
 	}
 
 	queue := mq.NewInMemoryQueue(mq.InMemoryQueueConfig{BufferSize: 10})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+	telemetryRepo := &MockTelemetryRepository{}
+	gpuRepo := &MockGPURepository{}
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 
@@ -109,8 +109,8 @@ func TestCollector_HandleMessage_MissingGPUUUID(t *testing.T) {
 	t.Skip("Test requires synchronous processing - handleMessage enqueues async")
 	config := &Config{InstanceID: "test-collector"}
 	queue := mq.NewInMemoryQueue(mq.InMemoryQueueConfig{BufferSize: 10})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+	telemetryRepo := &MockTelemetryRepository{}
+	gpuRepo := &MockGPURepository{}
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 
@@ -140,8 +140,9 @@ func TestCollector_HandleMessage_MissingTimestamp(t *testing.T) {
 	t.Skip("Test requires synchronous processing - handleMessage enqueues async")
 	config := &Config{InstanceID: "test-collector"}
 	queue := mq.NewInMemoryQueue(mq.InMemoryQueueConfig{BufferSize: 10})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+
+	telemetryRepo := &MockTelemetryRepository{}
+	gpuRepo := &MockGPURepository{}
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 
@@ -170,8 +171,9 @@ func TestCollector_HandleMessage_NoGPUMetadata(t *testing.T) {
 	t.Skip("Test requires synchronous processing - handleMessage enqueues async")
 	config := &Config{InstanceID: "test-collector"}
 	queue := mq.NewInMemoryQueue(mq.InMemoryQueueConfig{BufferSize: 10})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+
+	telemetryRepo := new(MockTelemetryRepository)
+	gpuRepo := new(MockGPURepository)
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 
@@ -203,8 +205,9 @@ func TestCollector_MultipleMessages(t *testing.T) {
 	t.Skip("Test requires synchronous processing - handleMessage enqueues async")
 	config := &Config{InstanceID: "test-collector"}
 	queue := mq.NewInMemoryQueue(mq.InMemoryQueueConfig{BufferSize: 100})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+
+	telemetryRepo := &MockTelemetryRepository{}
+	gpuRepo := &MockGPURepository{}
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 
@@ -247,8 +250,11 @@ func TestCollector_Stats(t *testing.T) {
 	t.Skip("Test requires synchronous processing - handleMessage enqueues async")
 	config := &Config{InstanceID: "test-collector"}
 	queue := mq.NewInMemoryQueue(mq.InMemoryQueueConfig{BufferSize: 10})
-	telemetryRepo := inmemory.NewTelemetryRepository()
-	gpuRepo := inmemory.NewGPURepository()
+
+	telemetryRepo := new(MockTelemetryRepository)
+	gpuRepo := new(MockGPURepository)
+
+	// Setup mock expectations
 
 	collector := NewCollector(config, queue, telemetryRepo, gpuRepo, nil)
 

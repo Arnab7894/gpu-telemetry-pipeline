@@ -459,12 +459,11 @@ make local-cleanup
 │   ├── domain/                   # Domain models (GPU, TelemetryPoint)
 │   ├── mq/                       # Message queue implementations
 │   │   ├── http_queue_client.go  # HTTP-based queue client
-│   │   ├── inmemory_queue.go     # In-memory queue
+│   │   ├── inmemory_queue.go     # In-memory queue (for testing)
 │   │   └── redis_queue.go        # Redis queue implementation
 │   ├── parser/                   # CSV parsing logic
 │   ├── queueservice/             # Custom queue service (optional)
 │   ├── storage/                  # Storage layer (Repository pattern)
-│   │   ├── inmemory/             # In-memory repository
 │   │   └── mongodb/              # MongoDB repository
 │   ├── streamer/                 # Streamer business logic
 │   └── telemetry/                # Telemetry domain logic

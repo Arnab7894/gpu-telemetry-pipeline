@@ -12,7 +12,7 @@ import (
 	appconfig "github.com/arnabghosh/gpu-metrics-streamer/internal/config"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/mq"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
-	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/inmemory"
+
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage/mongodb"
 )
 
@@ -85,10 +85,8 @@ func main() {
 		defer mongoGPURepo.Close(context.Background())
 		gpuRepo = mongoGPURepo
 	} else {
-		// Use in-memory storage
-		logger.Info("Using in-memory storage")
-		telemetryRepo = inmemory.NewTelemetryRepository()
-		gpuRepo = inmemory.NewGPURepository()
+		logger.Error("MongoDB URI not configured. Set MONGODB_URI environment variable.")
+		os.Exit(1)
 	}
 
 	// Create collector

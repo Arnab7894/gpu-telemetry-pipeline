@@ -12,7 +12,6 @@ import (
 
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/mq"
 	"github.com/arnabghosh/gpu-metrics-streamer/internal/parser"
-	"github.com/arnabghosh/gpu-metrics-streamer/internal/storage"
 	"github.com/google/uuid"
 )
 
@@ -25,7 +24,6 @@ const (
 type Streamer struct {
 	config     *Config
 	queue      mq.MessageQueue
-	gpuRepo    storage.GPURepository
 	batchLock  *BatchLock // Distributed lock for CSV processing
 	logger     *slog.Logger
 	rowsSent   atomic.Int64
@@ -33,7 +31,7 @@ type Streamer struct {
 }
 
 // NewStreamer creates a new telemetry streamer
-func NewStreamer(config *Config, queue mq.MessageQueue, gpuRepo storage.GPURepository, batchLock *BatchLock, logger *slog.Logger) *Streamer {
+func NewStreamer(config *Config, queue mq.MessageQueue, batchLock *BatchLock, logger *slog.Logger) *Streamer {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -41,7 +39,6 @@ func NewStreamer(config *Config, queue mq.MessageQueue, gpuRepo storage.GPURepos
 	return &Streamer{
 		config:    config,
 		queue:     queue,
-		gpuRepo:   gpuRepo,
 		batchLock: batchLock,
 		logger:    logger.With("component", "streamer", "instance_id", config.InstanceID),
 	}
@@ -210,16 +207,9 @@ func (s *Streamer) streamFile(ctx context.Context) error {
 	return nil
 }
 
-// processRecord handles a single CSV record - store GPU and publish telemetry
+// processRecord handles a single CSV record - publish telemetry with GPU metadata
 // All records in a batch share the same timestamp
 func (s *Streamer) processRecord(ctx context.Context, record *parser.CSVRecord, batchTimestamp time.Time, batchID string) error {
-	// Store GPU info (idempotent - updates if exists)
-	gpu := record.ToGPU()
-	if err := s.gpuRepo.Store(gpu); err != nil {
-		s.logger.Debug("Failed to store GPU", "uuid", gpu.UUID, "error", err)
-		// Non-fatal - continue with telemetry
-	}
-
 	// Create telemetry point with batch timestamp (NOT time.Now())
 	telemetry := record.ToTelemetryPoint()
 	telemetry.Timestamp = batchTimestamp // All records in batch get same timestamp
