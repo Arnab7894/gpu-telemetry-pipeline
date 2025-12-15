@@ -114,7 +114,7 @@ func (q *RedisQueue) Publish(ctx context.Context, msg *mq.Message) error {
 		"message_id", msg.ID,
 	)
 
-	// Notify all consumers in all groups for this topic
+	// TODO: Notify all consumers in all groups for this topic
 	q.notifyConsumers(msg.Topic)
 
 	return nil

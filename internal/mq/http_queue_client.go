@@ -538,6 +538,11 @@ func (c *HTTPQueueClient) Stats() QueueStats {
 		return QueueStats{}
 	}
 
+	// TODO: Cleanup - Either map Queue Service stats to QueueStats fields or remove this method
+	// Currently returns hardcoded zeros because HTTPQueueClient is a proxy and doesn't track
+	// local counters. The fetched stats from Queue Service have different semantics (pending
+	// messages, consumer counts) than what QueueStats expects (total published/delivered).
+	// Options: 1) Map Queue Service stats appropriately, 2) Make Stats() optional in interface
 	// Convert to QueueStats (simplified)
 	return QueueStats{
 		TotalPublished: 0, // Not tracked by HTTP client

@@ -52,9 +52,6 @@ func (s *Streamer) Start(ctx context.Context) error {
 		"loop_mode", s.config.LoopMode,
 	)
 
-	// Start statistics reporter
-	go s.reportStats(ctx)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -92,7 +89,7 @@ func (s *Streamer) Start(ctx context.Context) error {
 					return err
 				}
 				s.logger.Error("Error streaming file", "error", err)
-				s.errorCount.Add(1)
+				s.errorCount.Add(1) // For statistics/logging
 
 				// If not in loop mode, exit on error
 				if !s.config.LoopMode {
@@ -257,28 +254,6 @@ func (s *Streamer) processRecord(ctx context.Context, record *parser.CSVRecord, 
 	)
 
 	return nil
-}
-
-// reportStats periodically logs statistics
-func (s *Streamer) reportStats(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			stats := s.queue.Stats()
-			s.logger.Info("Streamer statistics",
-				"rows_sent", s.rowsSent.Load(),
-				"errors", s.errorCount.Load(),
-				"queue_depth", stats.QueueDepth,
-				"queue_published", stats.TotalPublished,
-				"queue_delivered", stats.TotalDelivered,
-			)
-		}
-	}
 }
 
 // Stats returns current streamer statistics

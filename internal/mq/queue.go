@@ -34,6 +34,10 @@ type MessageQueue interface {
 	// Should be called after Stop()
 	Close() error
 
+	// TODO: Cleanup - Make Stats() optional or remove from interface
+	// HTTPQueueClient returns hardcoded zeros because it's a proxy without local tracking.
+	// Consider: 1) Making this method optional, 2) Removing it entirely, or
+	// 3) Properly mapping Queue Service stats to QueueStats semantics
 	// Stats returns queue statistics (optional, for monitoring)
 	Stats() QueueStats
 }

@@ -44,11 +44,6 @@ func main() {
 		ConsumerID:    config.InstanceID,
 	}, logger)
 
-	if err := queue.Start(ctx); err != nil {
-		logger.Error("Failed to start message queue", "error", err)
-		os.Exit(1)
-	}
-
 	logger.Info("Loaded configuration",
 		"csv_path", config.CSVPath,
 		"instance_id", config.InstanceID,

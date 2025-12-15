@@ -73,6 +73,7 @@ func (bl *BatchLock) AcquireLock(ctx context.Context) error {
 				"retry_interval", lockAcquireRetryInterval,
 			)
 
+			// Interruptible sleep - allows graceful shutdown during retry wait period
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
