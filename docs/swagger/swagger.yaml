@@ -99,7 +99,7 @@ info:
   title: GPU Telemetry Pipeline API
   version: "1.0"
 paths:
-  /api/v1/gpus:
+  /gpus:
     get:
       consumes:
       - application/json
@@ -118,7 +118,7 @@ paths:
       summary: List all GPUs
       tags:
       - gpus
-  /api/v1/gpus/{uuid}:
+  /gpus/{uuid}:
     get:
       consumes:
       - application/json
@@ -148,7 +148,7 @@ paths:
       summary: Get GPU by UUID
       tags:
       - gpus
-  /api/v1/gpus/{uuid}/telemetry:
+  /gpus/{uuid}/telemetry:
     get:
       consumes:
       - application/json
@@ -171,6 +171,13 @@ paths:
         in: query
         name: end_time
         type: string
+      - description: Maximum number of results
+        example: 100
+        in: query
+        maximum: 10000
+        minimum: 1
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:

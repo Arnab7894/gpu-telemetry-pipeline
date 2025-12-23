@@ -23,7 +23,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/gpus": {
+        "/gpus": {
             "get": {
                 "description": "Get list of all GPU devices for which telemetry data exists",
                 "consumes": [
@@ -52,7 +52,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/gpus/{uuid}": {
+        "/gpus/{uuid}": {
             "get": {
                 "description": "Get a specific GPU device by its UUID",
                 "consumes": [
@@ -97,7 +97,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/gpus/{uuid}/telemetry": {
+        "/gpus/{uuid}/telemetry": {
             "get": {
                 "description": "Get telemetry data for a specific GPU with optional time filtering. Results are ordered by timestamp (newest first).",
                 "consumes": [
@@ -131,6 +131,15 @@ const docTemplate = `{
                         "example": "\"2025-01-18T23:59:59Z\"",
                         "description": "End time in RFC3339 format",
                         "name": "end_time",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 10000,
+                        "minimum": 1,
+                        "type": "integer",
+                        "example": 100,
+                        "description": "Maximum number of results",
+                        "name": "limit",
                         "in": "query"
                     }
                 ],

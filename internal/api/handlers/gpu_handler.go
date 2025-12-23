@@ -31,7 +31,7 @@ func NewGPUHandler(gpuRepo storage.GPURepository) *GPUHandler {
 // @Produce json
 // @Success 200 {object} dto.GPUListResponse
 // @Failure 500 {object} dto.ErrorResponse
-// @Router /api/v1/gpus [get]
+// @Router /gpus [get]
 func (h *GPUHandler) ListGPUs(c *gin.Context) {
 	gpus, err := h.gpuRepo.List()
 	if err != nil {
@@ -68,7 +68,7 @@ func (h *GPUHandler) ListGPUs(c *gin.Context) {
 // @Success 200 {object} dto.GPUResponse
 // @Failure 404 {object} dto.ErrorResponse
 // @Failure 500 {object} dto.ErrorResponse
-// @Router /api/v1/gpus/{uuid} [get]
+// @Router /gpus/{uuid} [get]
 func (h *GPUHandler) GetGPU(c *gin.Context) {
 	uuid := c.Param("uuid")
 

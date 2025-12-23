@@ -44,7 +44,7 @@ func NewTelemetryHandler(telemetryRepo storage.TelemetryRepository, gpuRepo stor
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
 // @Failure 500 {object} dto.ErrorResponse
-// @Router /api/v1/gpus/{uuid}/telemetry [get]
+// @Router /gpus/{uuid}/telemetry [get]
 func (h *TelemetryHandler) GetGPUTelemetry(c *gin.Context) {
 	uuid := c.Param("uuid")
 
