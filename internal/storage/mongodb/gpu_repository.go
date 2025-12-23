@@ -60,6 +60,7 @@ func (r *GPURepository) Store(gpu *domain.GPU) error {
 	return nil
 }
 
+// Todo: Redundant, remove
 // BulkStore stores or updates multiple GPUs efficiently using MongoDB bulk write
 func (r *GPURepository) BulkStore(gpus []*domain.GPU) error {
 	if len(gpus) == 0 {

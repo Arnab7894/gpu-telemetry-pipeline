@@ -166,6 +166,7 @@ func (q *RedisQueue) FetchBatch(ctx context.Context, topic, consumerGroup, consu
 	return messages, nil
 }
 
+// TODO: Remove
 // RegisterConsumer registers a consumer in a consumer group for a topic
 func (q *RedisQueue) RegisterConsumer(topic, consumerGroup, consumerID string) chan *mq.Message {
 	q.mu.Lock()
@@ -217,6 +218,7 @@ func (q *RedisQueue) RegisterConsumer(topic, consumerGroup, consumerID string) c
 	return consumer.EventsCh
 }
 
+// TODO: Remove
 // UnregisterConsumer removes a consumer from a consumer group
 func (q *RedisQueue) UnregisterConsumer(topic, consumerGroup, consumerID string) {
 	q.mu.Lock()
@@ -246,6 +248,7 @@ func (q *RedisQueue) UnregisterConsumer(topic, consumerGroup, consumerID string)
 	}
 }
 
+// TODO: Remove
 // deliverMessagesToGroup continuously delivers messages to consumers in a group (round-robin)
 func (q *RedisQueue) deliverMessagesToGroup(topic, consumerGroup string) {
 	defer q.wg.Done()

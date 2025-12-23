@@ -30,8 +30,8 @@ func NewHTTPServer(queue *RedisQueue, port int, logger *slog.Logger) *HTTPServer
 
 	// Register routes
 	mux.HandleFunc("/api/v1/queue/publish", s.handlePublish)
-	mux.HandleFunc("/api/v1/queue/subscribe", s.handleSubscribe)
-	mux.HandleFunc("/api/v1/queue/fetch", s.handleFetch) // Batch/prefetch endpoint
+	mux.HandleFunc("/api/v1/queue/subscribe", s.handleSubscribe) // TODO: Remove
+	mux.HandleFunc("/api/v1/queue/fetch", s.handleFetch)         // Batch/prefetch endpoint
 	mux.HandleFunc("/api/v1/queue/ack", s.handleAck)
 	mux.HandleFunc("/api/v1/queue/nack", s.handleNack)
 	mux.HandleFunc("/api/v1/queue/stats", s.handleStats)
@@ -127,6 +127,7 @@ func (s *HTTPServer) handlePublish(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// TODO: Remove
 // handleSubscribe handles GET /api/v1/queue/subscribe (Server-Sent Events)
 func (s *HTTPServer) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

@@ -78,6 +78,7 @@ func (c *Collector) Start(ctx context.Context) error {
 	// Start worker pool
 	c.startWorkerPool(ctx)
 
+	// Check from here.
 	// Subscribe to telemetry topic
 	if err := c.queue.Subscribe(ctx, TopicTelemetry, c.handleMessage); err != nil {
 		return fmt.Errorf("failed to subscribe to topic: %w", err)
@@ -106,13 +107,17 @@ func (c *Collector) Start(ctx context.Context) error {
 	<-c.workersDone
 
 	return ctx.Err()
-} // handleMessage enqueues message to worker pool for parallel processing
+}
+
+// handleMessage enqueues message to worker pool for parallel processing
 func (c *Collector) handleMessage(ctx context.Context, msg *mq.Message) error {
 	// Enqueue work item (non-blocking with timeout)
 	select {
 	case c.workQueue <- workItem{ctx: ctx, msg: msg}:
 		// Successfully enqueued
 		return nil
+	// Increase WorkQueueSize if seeing frequent drops or
+	// Increase timeout if workers are slow but not failing
 	case <-time.After(5 * time.Second):
 		// Work queue is full, drop message
 		c.messagesErrors.Add(1)

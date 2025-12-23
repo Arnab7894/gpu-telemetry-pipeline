@@ -48,6 +48,7 @@ func main() {
 		ConsumerID:    config.InstanceID,
 	}, logger)
 
+	// TODO: Remove this as it is not needed for consumers
 	if err := queue.Start(ctx); err != nil {
 		logger.Error("Failed to start message queue", "error", err)
 		os.Exit(1)
